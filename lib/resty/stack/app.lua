@@ -13,20 +13,8 @@ local get_post =  post.get
 local get_redis = utils.get_redis
 local keep_redis = utils.keep_redis
 local split = utils.split
+local get_user_id = utils.get_user_id
 local config = require "resty.stack.config"
-
-local function get_user_id(self)
-  if self.IS_PUBLIC then return end
-  
-  local auth = var.cookie_auth
-  if not auth then return exit(401) end
-  
-  self.user_id = self.r:hget("user:auth", auth)
-  if self.user_id == null then return exit(401) end
-  
-  self.user_key = "user:".. self.user_id
-  self.is_admin =  self.r:hget(self.user_key, "is_admin") == "1"
-end
 
 local function index(self)
   local method = var.request_method
@@ -56,7 +44,7 @@ function _M.run()
   local output = _M.load(r)
   
   if not output then 
-    output = "null"
+    output = ""
   elseif type(output) == "table" then
     output = cjson.encode(output)
   end
@@ -107,8 +95,8 @@ function _M.load(r,path)
   if handler == nil then return err end
  
   -- validate authorization
-  get_user_id(c)
-  
+  if not service.IS_PUBLIC then get_user_id(c) end
+
   return handler(c)
 
 end

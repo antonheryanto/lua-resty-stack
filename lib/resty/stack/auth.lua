@@ -8,7 +8,7 @@ local md5 = ngx.md5
 local time = ngx.time
 local cookie_time = ngx.cookie_time
 local get_post =  post.get
-local ok,user = pcall(require, "modules.user")
+local ok,user = pcall(require, "user")
 
 local _M = new_tab(0,3)
 local mt = { __index = _M }
@@ -23,7 +23,7 @@ end
 local function user_data(self, id)
   local r, u = self.r, {id = id} 
 
-  if ok and user.data then
+  if user.data then
     u = user.data(self, id)
   end
   

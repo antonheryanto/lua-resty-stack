@@ -12,7 +12,27 @@ local sub = string.sub
 local find = string.find
 local len = string.len
 
-local _M = new_tab(0, 7)
+local _M = new_tab(0, 5)
+
+function _M.get_user_id(self)
+  local auth = var.cookie_auth
+  if not auth then 
+    ngx.status = 403;
+    ngx.say('{"status": 401, "message": "Authentication Require" }')
+    return exit(200) 
+  end
+  
+  self.user_id = self.r:hget("user:auth", auth)
+  if self.user_id == null then 
+    ngx.status = 403;
+    ngx.say('{"status": 401, "message": "Authentication Require" }')
+    return exit(200) 
+  end
+  
+  self.user_key = "user:".. self.user_id
+  self.is_admin =  self.r:hget(self.user_key, "is_admin") == "1"
+  return self.user_id
+end
 
 function _M.split(self, delimiter, limit)
   if not self or type(self) ~= "string" then return end
