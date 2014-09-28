@@ -2,17 +2,13 @@
 
 local cjson = require "cjson"
 local upload = require "resty.upload"
+local new_tab = require "table.new"
 local open = io.open
 local sub  = string.sub
 local len = string.len
 local find = string.find
-local split = utils.split
 local get_headers = ngx.req.get_headers
-
-local ok, new_tab = pcall(require, "table.new")
-if not ok then
-  new_tab = function (narr, nrec) return {} end
-end
+local split = require "resty.stack.utils".split
 
 local _M = new_tab(0,1)
 local needle = 'filename="'

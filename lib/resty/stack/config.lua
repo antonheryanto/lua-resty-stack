@@ -1,11 +1,17 @@
 -- Copyright (C) Anton heryanto.
 
+local type = type
+local len = string.len
+local pairs = pairs
+local new_tab = require "table.new"
+local auth = require "resty.stack.auth"
 local ok, config = pcall(require, "config")
 if not ok then config = {} end
 
-local _M = {}
+local _M = new_tab(0,6)
+_M.debug = config.debug
 _M.base = config.base or "/"
-_M.base_length = _M.base:len() + 1
+_M.base_length = len(_M.base) + 1
 
 local redis = config.redis or {}
 _M.redis = {
@@ -16,7 +22,7 @@ _M.redis = {
   keep_idle = redis.keep_idle or 0
 }
 _M.modules = config.modules or {}
-_M.services = { auth = require "resty.stack.auth" }
+_M.services = { auth = auth }
 
 for k,v in pairs(_M.modules) do
   if type(v) == "table" then

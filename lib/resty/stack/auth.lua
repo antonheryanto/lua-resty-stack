@@ -7,10 +7,11 @@ local null = ngx.null
 local md5 = ngx.md5
 local time = ngx.time
 local cookie_time = ngx.cookie_time
-local get_post =  post.get
-local ok,user = pcall(require, "user")
+local user = require "user"
+local new_tab = require "table.new"
+local get_post = require "resty.stack.post".get
 
-local _M = new_tab(0,3)
+local _M = new_tab(0,4)
 local mt = { __index = _M }
 
 _M.IS_PUBLIC = true
@@ -20,11 +21,11 @@ function _M.new(self, p)
   return setmetatable(p, mt)
 end
 
-local function user_data(self, id)
+function _M.user_data(self, id)
   local r, u = self.r, {id = id} 
 
   if user.data then
-    u = user.data(self, id)
+    u = user.data({r = r }, id)
   end
   
   return u
@@ -36,19 +37,19 @@ function _M.login(self)
   if auth then -- check cookie auth if id exist
     local id = r:hget("user:auth", auth)
     if id ~= null and auth == r:hget("user:".. id, "auth") then
-      return user_data(self, id)
+      return _M.user_data(self, id)
     end
   end
 
   local m = var.request_method == "GET" and self.arg or get_post(self)
   if not m.name or not m.password then
-    return { warning = "please provide username and password" }
+    return { errors = {"please provide username and password" }}
   end
 
   local password = "password"
   local property = m.name:find("@") and "email" or "name"
   local id = r:hget("user:".. property, m.name)
-  local no_id = { error = "email or password is incorrect " }
+  local no_id = { errors = {"email or password is incorrect " }}
   
   if id == null then return no_id end
 
@@ -72,7 +73,7 @@ function _M.login(self)
   local expires = 3600 * 24 -- 1 day
   header["Set-Cookie"] = "auth=" .. auth .. ";Expires=" .. cookie_time(time() + expires)
 
-  return user_data(self, id)
+  return _M.user_data(self, id)
 end
 
 function _M.logout(self)

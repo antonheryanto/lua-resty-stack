@@ -1,6 +1,7 @@
 -- Copyright (C) Anton heryanto.
 
-local new_tab = new_tab
+local new_tab = require "table.new"
+local cjson = require "cjson"
 local type = type
 local tonumber = tonumber
 local sub = string.sub
@@ -8,13 +9,15 @@ local ngx = ngx
 local var = ngx.var
 local req = ngx.req
 local null = ngx.null
-local exit = ngx.exit
-local get_post =  post.get
+local say = ngx.say
+local get_post = require "resty.stack.post".get
+local utils = require "resty.stack.utils"
 local get_redis = utils.get_redis
 local keep_redis = utils.keep_redis
 local split = utils.split
 local get_user_id = utils.get_user_id
 local config = require "resty.stack.config"
+local services = config.services
 
 local function index(self)
   local method = var.request_method
@@ -36,32 +39,51 @@ local function index(self)
   return output
 end
 
-local _M = new_tab(0, 2)
+local _M = new_tab(0, 3)
+
+function _M.get_user_id(self)
+  local auth = var.cookie_auth
+  local err = '{"errors": ["Authentication Required"] }'
+  if not auth then 
+    ngx.status = 401;
+    ngx.say(err)
+    return exit(200) 
+  end
+  
+  self.user_id = self.r:hget("user:auth", auth)
+  if self.user_id == null then 
+    ngx.status = 401;
+    ngx.say(err)
+    return exit(200) 
+  end
+  
+  self.user_key = "user:".. self.user_id
+  local user = services["user"]
+  if user then self.user = user.data({r = self.r}, self.user_id) end
+  return self.user_id
+end
 
 function _M.run()
   local r = get_redis(config.redis)
-  -- get service
-  local output = _M.load(r)
-  
-  if not output then 
-    output = ""
-  elseif type(output) == "table" then
-    output = cjson.encode(output)
-  end
-
   local header = ngx.header
   header['Access-Control-Allow-Origin'] = '*'
+  local res = _M.load(r)
+  ngx.status = res.status
+  
+  local output = res.body
+  if not output then output = null end
+  if type(output) == 'table' then output = cjson.encode(output) end
+
+  -- get service
   ngx.say(output)
 
   keep_redis(r, config.redis)
-
 end
 
 function _M.load(r,path)
   local path = path or sub(var.uri, config.base_length)
   local uri = split(path, '/', 3)
-  local err = { error = "page not found" }
-  local services = config.services
+  local err = { status = 404, body = { errors = {"page not found"} } }
   
   local p = new_tab(0,3)
   p.index = index
@@ -95,10 +117,9 @@ function _M.load(r,path)
   if handler == nil then return err end
  
   -- validate authorization
-  if not service.IS_PUBLIC then get_user_id(c) end
+  if not service.IS_PUBLIC then _M.get_user_id(c) end
 
-  return handler(c)
-
+  return { status = 200, body = handler(c) }
 end
 
 return _M
