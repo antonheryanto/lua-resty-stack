@@ -14,6 +14,11 @@ local redis = require "resty.redis"
 
 local _M = new_tab(0, 5)
 
+function _M.trim(self)
+  if not self or type(self) ~= "string" then return end
+  return (s:gsub("^%s*(.-)%s*$", "%1"))
+end
+
 function _M.split(self, delimiter, limit)
   if not self or type(self) ~= "string" then return end
   local length = len(self)
