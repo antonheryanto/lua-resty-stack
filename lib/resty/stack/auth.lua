@@ -7,7 +7,7 @@ local null = ngx.null
 local md5 = ngx.md5
 local time = ngx.time
 local cookie_time = ngx.cookie_time
-local user = require "user"
+local ok, user = pcall(require, "user")
 local new_tab = require "table.new"
 local get_post = require "resty.stack.post".get
 
@@ -21,10 +21,31 @@ function _M.new(self, p)
   return setmetatable(p, mt)
 end
 
+function _M.get_user_id(self)
+  local auth = var.cookie_auth
+  local err = '{"errors": ["Authentication Required"] }'
+  if not auth then 
+    ngx.status = 401;
+    ngx.say(err)
+    return exit(200) 
+  end
+  
+  self.user_id = self.r:hget("user:auth", auth)
+  if self.user_id == null then 
+    ngx.status = 401;
+    ngx.say(err)
+    return exit(200) 
+  end
+  
+  self.user_key = "user:".. self.user_id
+  if user then self.user = user.data({r = self.r}, self.user_id) end
+  return self.user_id
+end
+
 function _M.user_data(self, id)
   local r, u = self.r, {id = id} 
 
-  if user.data then
+  if user and user.data then
     u = user.data({r = r }, id)
   end
   
