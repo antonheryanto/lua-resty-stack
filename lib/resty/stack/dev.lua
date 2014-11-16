@@ -1,16 +1,22 @@
 -- Copyright (C) Anton heryanto.
 
-local say = ngx.say
-local var = ngx.var
-local log = ngx.log
-local capture = ngx.location.capture
+local split = require "resty.stack.utils".split
+
 local popen = io.popen
 local concat = table.concat
-local templates = ngx.shared.templates
-local split = utils.split
 local sub = string.sub
 local gsub = string.gsub
-local ok, config = pcall(require,"config")
+local templates = ngx.shared.templates
+local capture = ngx.location.capture
+local say = ngx.print
+local var = ngx.var
+local log = ngx.log
+
+local ok, config = pcall(require, "config")
+if not ok then 
+  log(ngx.WARN, 'config.lua fail to load')
+  config = {} 
+end
 
 local function cmd_unix(path, ext)
   local cmd = 'find '.. path ..' -name "*.'.. ext ..'"'

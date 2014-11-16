@@ -2,7 +2,6 @@
 
 local verbose = require "resty.stack.config".debug 
 if verbose then
-  ngx.log(ngx.WARN,"dump jit")
   local dump = require "jit.dump"
   dump.on("b", "logs/jit.log")
 else

@@ -3,12 +3,13 @@
 local cjson = require "cjson"
 local upload = require "resty.upload"
 local new_tab = require "table.new"
+local split = require "resty.stack.utils".split
 local open = io.open
 local sub  = string.sub
 local len = string.len
 local find = string.find
 local get_headers = ngx.req.get_headers
-local split = require "resty.stack.utils".split
+local var = ngx.var
 
 local _M = new_tab(0,1)
 local needle = 'filename="'

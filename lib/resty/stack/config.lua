@@ -1,14 +1,18 @@
 -- Copyright (C) Anton heryanto.
 
+local new_tab = require "table.new"
 local type = type
 local len = string.len
 local pairs = pairs
-local new_tab = require "table.new"
-local auth = require "resty.stack.auth"
+local log = ngx.log
 local ok, config = pcall(require, "config")
-if not ok then config = {} end
+if not ok then 
+  log(ngx.WARN, 'config.lua fail to load, not modules is preloaded')
+  config = {} 
+end
 
 local _M = new_tab(0,6)
+_M.conf = config.conf or {}
 _M.debug = config.debug
 _M.base = config.base or "/"
 _M.base_length = len(_M.base) + 1
@@ -22,7 +26,7 @@ _M.redis = {
   keep_idle = redis.keep_idle or 0
 }
 _M.modules = config.modules or {}
-_M.services = { auth = auth }
+_M.services = { }
 
 for k,v in pairs(_M.modules) do
   if type(v) == "table" then
@@ -31,7 +35,9 @@ for k,v in pairs(_M.modules) do
       _M.services[ns] = require (ns)
     end
   else
-    _M.services[v] = require (v)
+    local key = k
+    if type(k) == 'number' then key = v end 
+    _M.services[key] = require (v)
   end
 end
 
