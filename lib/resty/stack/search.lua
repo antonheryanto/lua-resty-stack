@@ -6,7 +6,7 @@ local max = math.max
 local log = math.log
 local unpack = unpack
 local gsub = ngx.re.gsub
-local split = utils.split
+local split = require "resty.stack.utils".split
 local rrandom = require "resty.random"
 local rstring = require "resty.string"
 
@@ -47,7 +47,7 @@ local function get_index_keys(content)
   local j = 0
   local words = {}
   for i=1,#raws do
-    local w = raws[i]
+    local w = split(raws[i],"'")[1]
     if not stop_words[w] and len(w) > 1 then
       j = j + 1
       words[j] = w
