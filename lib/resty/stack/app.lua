@@ -2,66 +2,39 @@
 
 local new_tab = require "table.new"
 local cjson = require "cjson"
+local utils = require "resty.stack.utils"
+local config = require "resty.stack.config"
+local get_post = require "resty.stack.post".get
+
+local encode = cjson.encode
+local get_redis = utils.get_redis
+local keep_redis = utils.keep_redis
+local split = utils.split
+local services = config.services
 local type = type
 local tonumber = tonumber
 local sub = string.sub
+local lower = string.lower
 local ngx = ngx
 local var = ngx.var
 local req = ngx.req
 local null = ngx.null
-local say = ngx.say
-local get_post = require "resty.stack.post".get
-local utils = require "resty.stack.utils"
-local get_redis = utils.get_redis
-local keep_redis = utils.keep_redis
-local split = utils.split
-local get_user_id = utils.get_user_id
-local config = require "resty.stack.config"
-local services = config.services
+local print = ngx.print
+local exit = ngx.exit
+local log = ngx.log
+local WARN = ngx.WARN
 
+-- module index action 
 local function index(self)
-  local method = var.request_method
-  local output 
-  if method == "POST" then
-    self.m = get_post(self)
-    output = self.save(self)
-  else
-    if self.arg.id then
-      if method == "DELETE" or self.arg.method == "DELETE" then
-        output = self.delete(self)
-      else
-        output = self.get(self) or '{}'
-      end
-    else
-      output = self.all(self) or '[]'
-    end
-  end
-  return output
+  local method = var.request_method or self.arg.method
+  local action = self[lower(method)]
+  if not action and (method == "POST" or method == "PUT") then action = self.save end
+  return action and action(self)
 end
 
 local _M = new_tab(0, 3)
 
-function _M.get_user_id(self)
-  local auth = var.cookie_auth
-  local err = '{"errors": ["Authentication Required"] }'
-  if not auth then 
-    ngx.status = 401;
-    ngx.say(err)
-    return exit(200) 
-  end
-  
-  self.user_id = self.r:hget("user:auth", auth)
-  if self.user_id == null then 
-    ngx.status = 401;
-    ngx.say(err)
-    return exit(200) 
-  end
-  
-  self.user_key = "user:".. self.user_id
-  local user = services["user"]
-  if user then self.user = user.data({r = self.r}, self.user_id) end
-  return self.user_id
-end
+_M.get_user_id = services.auth and services.auth.get_user_id
 
 function _M.run()
   local r = get_redis(config.redis)
@@ -72,54 +45,68 @@ function _M.run()
   
   local output = res.body
   if not output then output = null end
-  if type(output) == 'table' then output = cjson.encode(output) end
+  if type(output) == 'table' then output = encode(output) end
 
   -- get service
-  ngx.say(output)
+  print(output)
 
   keep_redis(r, config.redis)
 end
 
+local not_found = { status = 404, body = { errors = {"page not found"} } }
 function _M.load(r,path)
   local path = path or sub(var.uri, config.base_length)
   local uri = split(path, '/', 3)
-  local err = { status = 404, body = { errors = {"page not found"} } }
-  
-  local p = new_tab(0,3)
-  p.index = index
+
+  -- attach to module
+  local method = var.request_method
+  local p = new_tab(0,7)
   p.r = r
   p.arg = req.get_uri_args()
+  p.get_user_id = _M.get_user_id
+  p.services = services
+  p.conf = config.conf
 
   local module = uri[1]
   local service = services[module]
-  local method = uri[2] ~= "" and uri[2]
+  local action = uri[2] ~= "" and uri[2]
   
   if not service then
-    if not method or tonumber(method) then return err end
-    service = services[module ..".".. method]
-    if not service then return err end
-    method = uri[3] ~= "" and uri[3]
+    if not action or tonumber(action) then return not_found end
+    service = services[module ..".".. action]
+    if not service then return not_found end
+    action = uri[3] ~= "" and uri[3]
   end
 
-  if method and tonumber(method) then
-    p.arg.id = method
-    method = nil
+  if action and tonumber(action) then
+    p.arg.id = action
+    action = nil
   end
   
-  if not method then method = "index" end
+  if not action then 
+    p.index = service.index or index
+    action = "index" 
+  end
   
-  local c = service:new(p)
-  if not c then return err end
+  if method == "POST" or method == "PUT" then 
+    p.m = get_post(service) 
+  end
+  
+  if config.debug then 
+    log(WARN, 'load service ', module, ' with request ', method, ' and action ', action) 
+  end
 
-  local handler = c[method]
+  local mt = { __index = service }
+  local c = setmetatable(p, mt)
 
-  -- if method not found check sub module
-  if handler == nil then return err end
+  local handler = c[action]
+
+  if handler == nil then return not_found end
  
   -- validate authorization
   if not service.IS_PUBLIC then _M.get_user_id(c) end
 
-  return { status = 200, body = handler(c) }
+  return { status = 200, body = handler(p) }
 end
 
 return _M
