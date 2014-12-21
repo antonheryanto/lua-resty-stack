@@ -3,28 +3,102 @@ lua-resty-stack
 
 Openresty Simple Application Stack
 
+Synopsis
+========
+REST based Application Stack
 
 Installation
 ============
-* copy lib/resty/stack to openresty/lualib/resty/
-
+* download or clone this repo
+* copy to openresty/lualib/resty/ or to Application path lib/resty
 
 How to use
 ==========
 edit nginx.conf
 
 ```nginx.conf
-init_by_lua_file "resty/stack/init.lua";
-
+lua_package_path "$prefix/api/?.lua;$prefix/lib/?.lua;;";
 server {
   listen 8080;
   
+  location /hello {
+    default_type "application/json; charset=UTF-8";
+    content_by_lua '
+      local app = require "resty.stack"
+      app.use(function(self)
+        return "Hello" 
+      end)
+    ';
+  }
+
   location /api {
     default_type "application/json; charset=UTF-8";
-    content_by_lua 'app.run()';
+    content_by_lua '
+      local app = require "resty.stack"
+      app.use({
+        get = function(self)
+          return "get Hello" 
+        end
+
+        post = function(self) 
+          return "post Hello"
+        end
+
+        put = function(self) 
+          return "put Hello"
+        end
+
+        delete = function(self)
+          return "delete Hello"
+        end
+      })
+    ';
   }
 }
 ```
+uses separated files
+hello.lua
+```lua
+local _M = {}
+
+function _M.get(self)
+  return "get Hello" 
+end
+
+function _M.save(self) 
+  return "post Hello"
+end
+
+function _M.put(self) 
+  return "put Hello"
+end
+
+function _M.delete(self)
+  return "delete Hello"
+end
+
+return _M
+```
+
+```nginx.conf
+ location /api {
+    default_type "application/json; charset=UTF-8";
+    content_by_lua '
+      local app = require "resty.stack"
+      app.use(require "hello")
+      app.run()
+    '
+ }
+```
+
+nginx -p `pwd`
+
+
+
+Method
+======
+
+
 
 Author
 ======

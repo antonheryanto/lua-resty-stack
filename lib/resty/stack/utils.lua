@@ -49,6 +49,8 @@ function _M.split(self, delimiter, limit)
 end
 
 function _M.get_redis(config)
+  if not config then return end
+
   local r = redis:new()
   
   local ok,err = r:connect(config.host, config.port)
