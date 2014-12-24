@@ -29,7 +29,7 @@ local WARN = ngx.WARN
 
 -- module index action 
 local function index(self)
-  local method = var.request_method or self.arg.method
+  local method = self.arg.method or var.request_method
   local action = self[lower(method)]
   if not action and (method == "POST" or method == "PUT") then action = self.save end
   return action and action(self)
