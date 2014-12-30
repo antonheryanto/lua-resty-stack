@@ -11,6 +11,7 @@ local len = string.len
 local sub = string.sub
 local new_tab = require "table.new"
 local redis = require "resty.redis"
+local concat = table.concat
 
 local _M = new_tab(0, 5)
 
@@ -62,6 +63,22 @@ function _M.get_redis(config)
     ngx.log(ngx.ERR, message)
     ngx.say("{error:".. message .."}")
     return
+  end
+  
+  -- add method to redis
+  function r.key(r, ...)
+    return concat({...},':')
+  end
+
+  function r.hash_save(r, key, data, fields, number_of_field)
+    --if not key or not data or not fields then return end
+
+    number_of_field = number_of_field or #fields
+    for i=1,number_of_field do
+      local k = fields[i]
+      local v = data[k]
+      if v and v ~= '' then r:hset(key, k, v) end
+    end
   end
   
   return r, config
