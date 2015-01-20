@@ -22,7 +22,7 @@ local ngx = ngx
 local var = ngx.var
 local req = ngx.req
 local null = ngx.null
-local say = ngx.say
+local print = ngx.print
 local exit = ngx.exit
 local log = ngx.log
 local WARN = ngx.WARN
@@ -56,7 +56,7 @@ function _M.run()
   if type(output) == 'table' then output = encode(output) end
 
   -- get service
-  say(output)
+  print(output)
 
   if redis then keep_redis(redis, config.redis) end
 end
