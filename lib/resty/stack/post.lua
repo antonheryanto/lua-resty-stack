@@ -8,6 +8,7 @@ local open = io.open
 local sub  = string.sub
 local len = string.len
 local find = string.find
+local type = type
 local get_headers = ngx.req.get_headers
 local var = ngx.var
 
@@ -88,7 +89,16 @@ local function multipart(self)
         m.files[key].size = handler:seek("end")
         handler:close()
       elseif key then
-        m[key] = value
+        if m[key] then -- handle array input, checkboxes
+          local mk = m[key]
+          if type(mk) == 'table' then 
+            m[key][#mk + 1] = value
+          else
+            m[key] = { mk, value }
+          end
+        else
+          m[key] = value
+        end
         key = nil
         value = nil
       end
@@ -102,18 +112,16 @@ end
 
 -- proses post based on content type
 function _M.get(self)
-  local header = get_headers()
-  if not header or not header["content-type"] then return end
-
+  local header = get_headers() or {}
   local ctype = header["content-type"]
   
-  if ctype:find("multipart") then
+  if ctype and ctype:find("multipart") then
     return multipart(self)
   end
 
   ngx.req.read_body()
 
-  if ctype:find("json") then
+  if ctype and ctype:find("json") then
     local body = var.request_body
     return body and cjson.decode(body) or {}
   end
