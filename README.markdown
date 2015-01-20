@@ -7,6 +7,15 @@ Synopsis
 ========
 REST based Application Stack
 
+TODO
+====
+* separated unrelated lib into independent lib
+* make config.lua optional and parameter for app
+* initiate apps instead
+* able to inject users defined type to app
+* more test
+* user defined routing module/:id/action
+
 Installation
 ============
 * download or clone this repo
