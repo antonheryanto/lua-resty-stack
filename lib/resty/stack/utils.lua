@@ -94,7 +94,7 @@ function _M.keep_redis(r, config)
 end
 
 function _M.validates(model, properties)
-  if not model or not properties then return end
+  if not model or not properties then return {'data is empty'} end
 
   local n = #properties
   if n == 0 then return end
