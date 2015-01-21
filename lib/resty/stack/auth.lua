@@ -28,23 +28,27 @@ function _M.get_user_id(self)
   end
   
   self.user_key = "user:".. self.user_id
-  if user then self.user = _M.data(self, self.user_id) end
+  self.user = _M.data(self, self.user_id)
   return self.user_id
 end
 
 function _M.data(self, id)
   local r = self.r
   local user = self.services.user
-  local u
+  local u,auth,password
   if user and user.data then 
-    u = user.data(self,id)
+    u,auth,password = user.data(self,id)
   else
     local a = r:hgetall("user:".. id)
     u = r:array_to_hash(a)
     u.id = id
+    auth = u.auth
+    password = u.password
+    u.auth = nil
+    u.password = nil
   end
   
-  return u
+  return u,auth,password
 end
 
 local wrong_auth = { errors = {"incorrect username or password"} }
@@ -54,12 +58,14 @@ function _M.login(self)
   -- validate user and password
   if not m.name and not m.password then 
     -- validate auth
-    local auth = var.cookie_auth
-    if m.auth then auth = m.auth end
-    local id = r:hget("user:auth", auth)
+    local token = var.cookie_auth
+    if m.token then token = m.token end
+    
+    local id = r:hget("user:auth", token)
     if id and id ~= null then
-      if auth == r:hget("user:".. id,'auth') then 
-        return _M.data(self, id)
+      local u,auth = _M.data(self, id)
+      if token == auth then
+        return u
       end 
       r:hdel("user:auth", auth) 
     end
@@ -67,19 +73,19 @@ function _M.login(self)
   end
 
   local id = r:hget("user:email", m.name)
-  if not id and id == null then return wrong_auth end
+  if not id or id == null then return wrong_auth end
 
-  local u = r:hmget("user:".. id, "password", "auth")
+  local u,auth,password = _M.data(self, id) 
   -- validates user is exists
   if not u then return wrong_auth end
 
-  local password = md5(m.password) 
+  local encrypted = md5(m.password) 
   -- validate agains local password
-  if m.password ~= 'password' and password ~= u[1] then
+  if (password and encrypted ~= password) or
+     (not password and m.password ~= 'password') then
     return errors
   end
   
-  local auth = u[2] and u[2] ~= null and u[2] or nil
   -- set auth auth if not exist
   if not auth then 
     auth = md5(time() .. m.name)
@@ -90,7 +96,7 @@ function _M.login(self)
   local header = ngx.header
   local expires = 3600 * 24 -- 1 day
   header["Set-Cookie"] = "auth=" .. auth .. ";Expires=" .. cookie_time(time() + expires)
-  return _M.data(self, id)
+  return u
 end
 
 function _M.logout(self)
