@@ -18,115 +18,115 @@ local needle_len = len(needle)
 local name_pos = 18 -- 'form-data; name="':len()
 
 local function decode_disposition(self, data)
-  local last_quote_pos = len(data) - 1
-  local filename_pos = find(data, needle)
-  
-  if not filename_pos then return sub(data,name_pos,last_quote_pos) end
+    local last_quote_pos = len(data) - 1
+    local filename_pos = find(data, needle)
 
-  local field = sub(data,name_pos,filename_pos - 4) 
-  local name = sub(data,filename_pos + needle_len, last_quote_pos)
-  
-  if name == "" then return end
-  local path = "files/" 
-  if self.get_path then
-    path, name = self.get_path(self, name, field)
-  end
+    if not filename_pos then return sub(data,name_pos,last_quote_pos) end
 
-  local filename = path .. name
-  local handler = open(filename, "w+")
+    local field = sub(data,name_pos,filename_pos - 4) 
+    local name = sub(data,filename_pos + needle_len, last_quote_pos)
 
-  if not handler then ngx.log(ngx.WARN,"failed to open file ", filename) end
+    if name == "" then return end
+    local path = "files/" 
+    if self.get_path then
+        path, name = self.get_path(self, name, field)
+    end
 
-  return field, name, handler
+    local filename = path .. name
+    local handler = open(filename, "w+")
+
+    if not handler then ngx.log(ngx.WARN,"failed to open file ", filename) end
+
+    return field, name, handler
 end
 
 
 local function multipart(self)  
-  local chunk_size = 8192
-  local form,err = upload:new(chunk_size)
+    local chunk_size = 8192
+    local form,err = upload:new(chunk_size)
 
-  if not form then
-    ngx.log(ngx.WARN, "failed to new upload: ", err)
-    return 
-  end
-  
-  local m = { files = {} }
-  local handler, key, value
-  
-  while true do
-    local ctype, res, err = form:read()
-  
-    if not ctype then 
-      ngx.log(ngx.WARN,"failed to read: ", err) 
-      return 
+    if not form then
+        ngx.log(ngx.WARN, "failed to new upload: ", err)
+        return 
     end
-    
-    if ctype == "header" then
-      local header, data = res[1], res[2]
 
-      if header == "Content-Disposition" then
-        key, value, handler = decode_disposition(self, data)
+    local m = { files = {} }
+    local handler, key, value
 
-        if handler then m.files[key] = { name = value } end
+    while true do
+        local ctype, res, err = form:read()
 
-      end
-      
-      if handler and header == "Content-Type" then
-        m.files[key].mime = data 
-      end
-    end
-      
-    if ctype == "body" then
-      if handler then
-        handler:write(res)
-      elseif res ~= "" then
-        value = value and value .. res or res
-      end
-    end
-      
-    if ctype == "part_end" then
-      if handler then 
-        m.files[key].size = handler:seek("end")
-        handler:close()
-      elseif key then
-        if m[key] then -- handle array input, checkboxes
-          local mk = m[key]
-          if type(mk) == 'table' then 
-            m[key][#mk + 1] = value
-          else
-            m[key] = { mk, value }
-          end
-        else
-          m[key] = value
+        if not ctype then 
+            ngx.log(ngx.WARN,"failed to read: ", err) 
+            return 
         end
-        key = nil
-        value = nil
-      end
-    end
-    
-    if ctype == "eof" then break end
 
-  end
-  return m
+        if ctype == "header" then
+            local header, data = res[1], res[2]
+
+            if header == "Content-Disposition" then
+                key, value, handler = decode_disposition(self, data)
+
+                if handler then m.files[key] = { name = value } end
+
+            end
+
+            if handler and header == "Content-Type" then
+                m.files[key].mime = data 
+            end
+        end
+
+        if ctype == "body" then
+            if handler then
+                handler:write(res)
+            elseif res ~= "" then
+                value = value and value .. res or res
+            end
+        end
+
+        if ctype == "part_end" then
+            if handler then 
+                m.files[key].size = handler:seek("end")
+                handler:close()
+            elseif key then
+                if m[key] then -- handle array input, checkboxes
+                    local mk = m[key]
+                    if type(mk) == 'table' then 
+                        m[key][#mk + 1] = value
+                    else
+                        m[key] = { mk, value }
+                    end
+                else
+                    m[key] = value
+                end
+                key = nil
+                value = nil
+            end
+        end
+
+        if ctype == "eof" then break end
+
+    end
+    return m
 end
 
 -- proses post based on content type
 function _M.get(self)
-  local header = get_headers() or {}
-  local ctype = header["content-type"]
-  
-  if ctype and ctype:find("multipart") then
-    return multipart(self)
-  end
+    local header = get_headers() or {}
+    local ctype = header["content-type"]
 
-  ngx.req.read_body()
+    if ctype and ctype:find("multipart") then
+        return multipart(self)
+    end
 
-  if ctype and ctype:find("json") then
-    local body = var.request_body
-    return body and cjson.decode(body) or {}
-  end
+    ngx.req.read_body()
 
-  return ngx.req.get_post_args()
+    if ctype and ctype:find("json") then
+        local body = var.request_body
+        return body and cjson.decode(body) or {}
+    end
+
+    return ngx.req.get_post_args()
 end
 
 return _M
