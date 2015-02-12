@@ -3,21 +3,18 @@
 local new_tab = require "table.new"
 local cjson = require "cjson"
 local utils = require "resty.stack.utils"
-local config = require "resty.stack.config"
 local get_post = require "resty.stack.post".get
 
 local encode = cjson.encode
 local get_redis = utils.get_redis
 local keep_redis = utils.keep_redis
 local split = utils.split
-local services = config.services
-local get_user_id = services.auth and services.auth.get_user_id
-local use = config.use
-local home = config.index
+local pairs = pairs
 local type = type
 local tonumber = tonumber
 local sub = string.sub
 local lower = string.lower
+local len = string.len
 local ngx = ngx
 local var = ngx.var
 local req = ngx.req
@@ -26,6 +23,7 @@ local print = ngx.print
 local exit = ngx.exit
 local log = ngx.log
 local WARN = ngx.WARN
+local header = ngx.header
 
 -- module index action 
 local function index(self)
@@ -35,20 +33,67 @@ local function index(self)
     return action and action(self)
 end
 
-local _M = new_tab(0, 4)
+local _M = new_tab(0, 5)
 
 _M.VERSION = "0.1.0"
+_M.services = {}
 
-function _M.use(path, fn)
-    local k,v = use(path,fn)
-    services[k] = v
+function _M.module(modules)
+    -- module 'string', 'function', 'table', sub { 'string', 'function', 'table' }
+    for k,v in pairs(modules) do
+        local key_type = type(k)
+        if type(v) == "table" then
+            for sk,sv in pairs(v) do
+                local tsk = type(sk)
+                if tsk == 'number' then sk = sv end 
+                local spath = tsk == 'string' and k.."."..sk or k ..".".. _M.index
+                local sfn = sv
+                if type(sv) == 'string' then
+                    local ns = k ..".".. sk
+                    spath = ns
+                    sfn = ns
+                end
+                _M.use(spath,sfn)
+            end
+        else
+            if key_type == 'number' then k = v end 
+            _M.use(k, v)
+        end
+    end
 end
 
-function _M.run()
-    local header = ngx.header
+function _M.use(path, fn)
+    if not path then return end
+
+    -- validate path
+    local tp = type(path)
+    if tp ~= 'string' then 
+        fn = path
+        path = sub(var.uri,2) or _M.index
+    end
+
+    -- validate fn
+    if not fn then fn = require(path) end 
+    local tf = type(fn)
+    local o
+    if tf == 'function' then
+        o = { index = fn }
+    elseif tf == 'table' then
+        o = fn
+    elseif tf == 'string' then
+        o = require(fn)
+    end
+
+    _M.services[path] = o
+end
+
+function _M.run(conf)
     header['Access-Control-Allow-Origin'] = '*'
-    local redis = get_redis(config.redis)
-    local res = _M.load(redis)
+    local param = conf or {}
+    param.base = conf.base or '/'
+    param.base_length = len(param.base) + 1
+    param.services = _M.services
+    local res = _M.load(param)
     ngx.status = res.status
 
     local output = res.body
@@ -57,16 +102,17 @@ function _M.run()
 
     -- get service
     print(output)
-
-    if redis then keep_redis(redis, config.redis) end
 end
 
 local not_found = { status = 404, body = { errors = {"page not found"} } }
 local not_authorize = { status = 401, body = { errors = {"Authentication required"} } }
-function _M.load(redis,path)
-    local path = path or sub(var.uri, config.base_length)
+function _M.load(param, path)
+    local path = path or sub(var.uri, param.base_length)
     local uri = split(path, '/', 3)
-
+    local p = param or {}
+    local services = p.services
+    if not services then return not_found end 
+    
     -- implement home module
     local module = (uri[1] == "" and services[home]) and home or uri[1]
     local action = uri[2] ~= "" and uri[2]
@@ -83,13 +129,10 @@ function _M.load(redis,path)
     end
 
     -- attach to module
+    local get_user_id = services.auth and services.auth.get_user_id
     local method = var.request_method
-    local p = new_tab(0,7)
-    p.r = redis
     p.arg = req.get_uri_args()
     p.get_user_id = get_user_id
-    p.services = services
-    p.conf = config.conf
     if action and tonumber(action) then
         p.arg.id = action
         action = nil
@@ -104,7 +147,7 @@ function _M.load(redis,path)
         p.m = get_post(service) 
     end
 
-    if config.debug then 
+    if param.debug then 
         log(WARN, 'load service ', module, ' with request ', method, ' and action ', action) 
     end
 

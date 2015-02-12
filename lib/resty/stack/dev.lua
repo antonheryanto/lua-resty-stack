@@ -106,7 +106,7 @@ end
 
 
 local args = req.get_uri_args()
-local path = args.path or 'app/'
+local path = (args.path or 'app') ..'/'
 local base = not args.path and 'app' or nil 
 local html = not args.html and 'views' or type(args.html) == 'table' and args.html[1] or args.html
 local js = not args.js and {'presenters'} or type(args.js) ~= 'table' and {args.js} or args.js

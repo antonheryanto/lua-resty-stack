@@ -13,7 +13,6 @@ require "resty.core"
 
 cjson = require "cjson"
 
-config = require "resty.stack.config"
 utils = require "resty.stack.utils"
 post = require "resty.stack.post"
 app = require "resty.stack"
