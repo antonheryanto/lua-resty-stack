@@ -32,7 +32,6 @@ __DATA__
     }
 --- request
 GET /t
---- response_body
-ok
+--- response_body: ok
 --- no_error_log
 [error]

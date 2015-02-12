@@ -90,7 +90,7 @@ end
 function _M.run(conf)
     header['Access-Control-Allow-Origin'] = '*'
     local param = conf or {}
-    param.base = conf.base or '/'
+    param.base = param.base or '/'
     param.base_length = len(param.base) + 1
     param.services = _M.services
     local res = _M.load(param)
