@@ -9,6 +9,7 @@ local encode = cjson.encode
 local get_redis = utils.get_redis
 local keep_redis = utils.keep_redis
 local split = utils.split
+local setmetatable = setmetatable
 local pairs = pairs
 local type = type
 local tonumber = tonumber
