@@ -114,6 +114,7 @@ function _M.load(param, path)
     if not services then return not_found end 
     
     -- implement home module
+    local home = param.index or 'index'
     local module = (uri[1] == "" and services[home]) and home or uri[1]
     local action = uri[2] ~= "" and uri[2]
     local service = services[module]
