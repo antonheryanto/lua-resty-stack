@@ -45,7 +45,7 @@ end
 
 function _M.trim(self)
     if not self or type(self) ~= "string" then return end
-    return (s:gsub("^%s*(.-)%s*$", "%1"))
+    return (self:gsub("^%s*(.-)%s*$", "%1"))
 end
 
 function _M.split(self, delimiter, limit)

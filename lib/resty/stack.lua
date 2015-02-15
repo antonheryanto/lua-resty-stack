@@ -38,6 +38,7 @@ local _M = new_tab(0, 5)
 
 _M.VERSION = "0.1.0"
 _M.services = {}
+_M.index = 'index'
 
 function _M.module(modules)
     -- module 'string', 'function', 'table', sub { 'string', 'function', 'table' }
