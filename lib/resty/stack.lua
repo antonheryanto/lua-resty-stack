@@ -24,7 +24,6 @@ local print = ngx.print
 local exit = ngx.exit
 local log = ngx.log
 local WARN = ngx.WARN
-local header = ngx.header
 
 -- module index action 
 local function index(self)
@@ -90,6 +89,7 @@ function _M.use(path, fn)
 end
 
 function _M.run(conf)
+    local header = ngx.header
     header['Access-Control-Allow-Origin'] = '*'
     local param = conf or {}
     param.base = param.base or '/'
@@ -116,7 +116,7 @@ function _M.load(param, path)
     if not services then return not_found end 
     
     -- implement home module
-    local home = param.index or 'index'
+    local home = param.home or 'index'
     local module = (uri[1] == "" and services[home]) and home or uri[1]
     local action = uri[2] ~= "" and uri[2]
     local service = services[module]
@@ -146,9 +146,7 @@ function _M.load(param, path)
         action = "index" 
     end
 
-    if method == "POST" or method == "PUT" then 
-        p.m = get_post(service) 
-    end
+    p.m = (method == "POST" or method == "PUT") and get_post(service) or nil 
 
     if param.debug then 
         log(WARN, 'load service ', module, ' with request ', method, ' and action ', action) 
