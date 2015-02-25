@@ -88,10 +88,10 @@ function _M.use(path, fn)
     _M.services[path] = o
 end
 
-function _M.run(conf)
+function _M.run(param)
     local header = ngx.header
     header['Access-Control-Allow-Origin'] = '*'
-    local param = conf or {}
+    param = param or {}
     param.base = param.base or '/'
     param.base_length = len(param.base) + 1
     param.services = _M.services
