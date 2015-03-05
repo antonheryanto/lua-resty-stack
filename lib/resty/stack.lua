@@ -109,10 +109,10 @@ end
 local not_found = { status = 404, body = { errors = {"page not found"} } }
 local not_authorize = { status = 401, body = { errors = {"Authentication required"} } }
 function _M.load(param, path)
+    param = param or {}
     local path = path or sub(var.uri, param.base_length)
     local uri = split(path, '/', 3)
-    local p = param or {}
-    local services = p.services
+    local services = param.services
     if not services then return not_found end 
     
     -- implement home module
@@ -134,28 +134,27 @@ function _M.load(param, path)
     -- attach to module
     local get_user_id = services.auth and services.auth.get_user_id
     local method = var.request_method
-    p.arg = req.get_uri_args()
-    p.get_user_id = get_user_id
+    param.arg = req.get_uri_args()
+    param.get_user_id = get_user_id
     if action and tonumber(action) then
-        p.arg.id = action
+        param.arg.id = action
         action = nil
     end
 
     if not action then 
-        p.index = service.index or index
+        param.index = service.index or index
         action = "index" 
     end
 
-    p.m = (method == "POST" or method == "PUT") and get_post(service) or nil 
 
     if param.debug then 
         log(WARN, 'load service ', module, ' with request ', method, ' and action ', action) 
     end
 
     local mt = { __index = service }
-    local c = setmetatable(p, mt)
-
+    local c = setmetatable(param, mt)
     local handler = c[action]
+    
 
     if handler == nil then return not_found end
     -- validate authorization
@@ -163,8 +162,11 @@ function _M.load(param, path)
         if not get_user_id then return not_authorize end
         get_user_id(c) 
     end
+    -- process post/put data
+    param.m = (method == "POST" or method == "PUT") and get_post(c) or nil 
+    param.data = param.m
 
-    return { status = 200, body = handler(p) }
+    return { status = 200, body = handler(param) }
 end
 
 return _M
