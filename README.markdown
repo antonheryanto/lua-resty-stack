@@ -9,7 +9,6 @@ REST based Application Stack
 
 TODO
 ====
-* separated unrelated lib into independent lib
 * more test
 * user defined routing module/:id/action
 
