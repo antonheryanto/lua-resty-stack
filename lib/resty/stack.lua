@@ -2,13 +2,9 @@
 
 local new_tab = require "table.new"
 local cjson = require "cjson"
-local utils = require "resty.stack.utils"
 local get_post = require "resty.stack.post".get
-
+local split = require "resty.stack.string".split
 local encode = cjson.encode
-local get_redis = utils.get_redis
-local keep_redis = utils.keep_redis
-local split = utils.split
 local setmetatable = setmetatable
 local pairs = pairs
 local type = type
