@@ -22,7 +22,8 @@ function _M.mysql(conf)
 
     local db = mysql:new()
     db:set_timeout(conf.timeout or 1000)
-    db:connect(conf) 
+    local ok,err = db:connect(conf) 
+    if not ok then log(ERR, 'failed connect to mysql with message: ', err)
     
     return db, conf
 end
@@ -35,7 +36,7 @@ function _M.redis(conf)
         or r:connect(conf.host or '127.0.0.1', conf.port or 6379)
 
     if not ok then 
-        log(ERR, "failed connect to redis with message : ".. (err or ''))
+        log(ERR, "failed connect to redis with message : ", err)
         return
     end
 
@@ -84,7 +85,7 @@ function _M.keep(db, conf)
     if not db then return end
 
     local ok,err = db:set_keepalive(conf.keep_idle or 0, conf.keep_size or 1024)
-    if not ok then log(ERR, "failed to keepalive with message : ".. err) end
+    if not ok then log(ERR, "failed to keepalive with message: ", err) end
 end
 
 return _M
