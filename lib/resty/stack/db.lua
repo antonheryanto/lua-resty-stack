@@ -23,7 +23,10 @@ function _M.mysql(conf)
     local db = mysql:new()
     db:set_timeout(conf.timeout or 1000)
     local ok,err = db:connect(conf) 
-    if not ok then log(ERR, 'failed connect to mysql with message: ', err)
+    if not ok then 
+        log(ERR, 'failed connect to mysql with message: ', err) 
+        return
+    end
     
     return db, conf
 end
