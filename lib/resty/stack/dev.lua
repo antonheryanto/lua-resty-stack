@@ -8,12 +8,14 @@ local concat = table.concat
 local sub = string.sub
 local gsub = string.gsub
 local len = string.len
+local find = string.find
 local print = ngx.print
 local log = ngx.log
 local WARN = ngx.WARN
 local req = ngx.req
+local args = req.get_uri_args()
 local prefix = ngx.config.prefix
-local root = prefix() .. '../'
+local root = prefix() .. (args.root or '')
 
 local function concat_file(path, ext, fn, fn_after)
     local cmd = 'find '.. path ..' -name "*.'.. ext ..'"'
@@ -24,8 +26,8 @@ local function concat_file(path, ext, fn, fn_after)
     while true do
         local handler,err = popen(cmd)
         if err or handler == nil then 
-            log(WARN, "handler invalid ", err) 
-            break 
+            log(WARN, "handler invalid", err)
+            break
         end
 
         local total = 0
@@ -50,7 +52,6 @@ local function concat_file(path, ext, fn, fn_after)
     print(output)
 end
 
-local args = req.get_uri_args()
 local path = root .. (args.path or 'app') ..'/'
 local base = not args.path and 'app' or nil 
 local html = not args.html and 'views' or type(args.html) == 'table' and args.html[1] or args.html
