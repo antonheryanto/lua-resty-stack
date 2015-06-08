@@ -11,6 +11,7 @@ local find = string.find
 local type = type
 local get_headers = ngx.req.get_headers
 local var = ngx.var
+local upload_path = ngx.config.prefix() ..'files/'
 
 local _M = new_tab(0,1)
 local needle = 'filename="'
@@ -27,7 +28,7 @@ local function decode_disposition(self, data)
     local name = sub(data,filename_pos + needle_len, last_quote_pos)
 
     if name == "" then return end
-    local path = "files/" 
+    local path = upload_path 
     if self.get_path then
         path, name = self.get_path(self, name, field)
     end
