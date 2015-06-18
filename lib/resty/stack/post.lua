@@ -52,6 +52,7 @@ local function multipart(self)
     end
 
     local m = { files = {} }
+    local files = {}
     local handler, key, value
 
     while true do
@@ -67,13 +68,12 @@ local function multipart(self)
 
             if header == "Content-Disposition" then
                 key, value, handler = decode_disposition(self, data)
-
-                if handler then m.files[key] = { name = value } end
-
+                
+                if handler then files[key] = { name = value } end
             end
 
-            if handler and header == "Content-Type" then
-                m.files[key].mime = data 
+            if handler and header == "Content-Type" then 
+                files[key].mime = data 
             end
         end
 
@@ -86,11 +86,23 @@ local function multipart(self)
         end
 
         if ctype == "part_end" then
-            if handler then 
-                m.files[key].size = handler:seek("end")
+            if handler then
+                files[key].size = handler:seek("end")
                 handler:close()
+                if m.files[key] then
+                    local nf = #m.files[key]
+                    if nf > 0 then
+                        m.files[key][nf + 1] = files[key]
+                    else
+                        m.files[key] = { m.files[key], files[key] }
+                    end
+                else
+                    m.files[key] = files[key]
+                end
+
             elseif key then
-                if m[key] then -- handle array input, checkboxes
+                -- handle array input, checkboxes
+                if m[key] then
                     local mk = m[key]
                     if type(mk) == 'table' then 
                         m[key][#mk + 1] = value
