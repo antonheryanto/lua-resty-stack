@@ -3,14 +3,17 @@
 local cjson = require "cjson"
 local upload = require "resty.upload"
 local new_tab = require "table.new"
-local split = require "resty.stack.utils".split
 local open = io.open
 local sub  = string.sub
 local len = string.len
 local find = string.find
 local type = type
 local get_headers = ngx.req.get_headers
+local read_body = ngx.req.read_body
+local get_post_args = ngx.req.get_post_args
 local var = ngx.var
+local log = ngx.log
+local WARN = ngx.WARN
 local upload_path = ngx.config.prefix() ..'files/'
 
 local _M = new_tab(0,1)
@@ -27,16 +30,16 @@ local function decode_disposition(self, data)
     local field = sub(data,name_pos,filename_pos - 4) 
     local name = sub(data,filename_pos + needle_len, last_quote_pos)
 
-    if name == "" then return end
+    if name == '' then return end
     local path = upload_path 
     if self.get_path then
         path, name = self.get_path(self, name, field)
     end
 
     local filename = path .. name
-    local handler = open(filename, "w+")
+    local handler = open(filename, 'w+')
 
-    if not handler then ngx.log(ngx.WARN,"failed to open file ", filename) end
+    if not handler then log(nWARN, 'failed to open file ', filename) end
 
     return field, name, handler
 end
@@ -47,7 +50,7 @@ local function multipart(self)
     local form,err = upload:new(chunk_size)
 
     if not form then
-        ngx.log(ngx.WARN, "failed to new upload: ", err)
+        log(WARN, 'failed to new upload: ', err)
         return 
     end
 
@@ -59,35 +62,35 @@ local function multipart(self)
         local ctype, res, err = form:read()
 
         if not ctype then 
-            ngx.log(ngx.WARN,"failed to read: ", err) 
+            log(WARN, 'failed to read: ', err) 
             return 
         end
 
-        if ctype == "header" then
+        if ctype == 'header' then
             local header, data = res[1], res[2]
 
-            if header == "Content-Disposition" then
+            if header == 'Content-Disposition' then
                 key, value, handler = decode_disposition(self, data)
                 
                 if handler then files[key] = { name = value } end
             end
 
-            if handler and header == "Content-Type" then 
+            if handler and header == 'Content-Type' then 
                 files[key].mime = data 
             end
         end
 
-        if ctype == "body" then
+        if ctype == 'body' then
             if handler then
                 handler:write(res)
-            elseif res ~= "" then
+            elseif res ~= '' then
                 value = value and value .. res or res
             end
         end
 
-        if ctype == "part_end" then
+        if ctype == 'part_end' then
             if handler then
-                files[key].size = handler:seek("end")
+                files[key].size = handler:seek('end')
                 handler:close()
                 if m.files[key] then
                     local nf = #m.files[key]
@@ -117,7 +120,7 @@ local function multipart(self)
             end
         end
 
-        if ctype == "eof" then break end
+        if ctype == 'eof' then break end
 
     end
     return m
@@ -126,20 +129,20 @@ end
 -- proses post based on content type
 function _M.get(self)
     local header = get_headers() or {}
-    local ctype = header["content-type"]
+    local ctype = header['content-type']
 
-    if ctype and ctype:find("multipart") then
+    if ctype and ctype:find('multipart') then
         return multipart(self)
     end
 
-    ngx.req.read_body()
+    read_body()
 
-    if ctype and ctype:find("json") then
+    if ctype and ctype:find('json') then
         local body = var.request_body
         return body and cjson.decode(body) or {}
     end
 
-    return ngx.req.get_post_args()
+    return get_post_args()
 end
 
 return _M
