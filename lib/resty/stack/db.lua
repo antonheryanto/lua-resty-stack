@@ -9,6 +9,7 @@ local type = type
 local null = ngx.null
 local log = ngx.log
 local ERR = ngx.ERR
+local WARN = ngx.WARN
 
 local _M = new_tab(0,3)
 
@@ -85,10 +86,17 @@ function _M.init(conf, fn)
 end
 
 function _M.keep(db, conf)
-    if not db then return end
+    if not db or not db.set_keepalive then return end
+    conf = conf or {}
 
     local ok,err = db:set_keepalive(conf.keep_idle or 0, conf.keep_size or 1024)
-    if not ok then log(ERR, "failed to keepalive with message: ", err) end
+
+    if not ok then 
+        log(ERR, "failed to keepalive with message: ", err) 
+    --else
+    --    local times, ex = db:get_reused_times()
+    --    log(WARN, "reused: ", times, " error: ",ex)
+    end
 end
 
 return _M
