@@ -68,7 +68,10 @@ function _M.redis(conf)
         for i=1,n do
             local k = fields[i]
             local v = trim(data[k])
-            if v and v ~= '' and v ~= null then r:hset(key, k, v) end
+            local t = type(v)
+            if v and v ~= '' and v ~= null and v ~= 'table'  and v ~= 'function' then 
+                r:hset(key, k, v) 
+            end
         end
     end
 
