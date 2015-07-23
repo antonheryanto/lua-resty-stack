@@ -84,11 +84,14 @@ function _M.use(path, fn)
     _M.services[path] = o
 end
 
-function _M.run(param)
+function _M.run(conf)
     local header = ngx.header
     header['Access-Control-Allow-Origin'] = '*'
-    param = param or {}
-    param.base = param.base or '/'
+    header['Access-Control-Max-Age'] = 2520
+    header['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE'
+    local param = {}
+    param.conf = conf
+    param.base = conf.base or '/'
     param.base_length = len(param.base) + 1
     param.services = _M.services
     local res = _M.load(param)
