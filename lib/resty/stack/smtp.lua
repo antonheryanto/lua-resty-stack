@@ -54,7 +54,7 @@ function _M.send(self, mail)
     local n = #cmd
     mail.rcpt = type(mail.to) == 'table' and mail.to or {mail.to}
 
-    for i=1,#mail.to do
+    for i=1,#mail.rcpt do
         n = n + 1
         cmd[n] = {'RCPT TO: <', mail.rcpt[i], '>\r\n'}
     end
