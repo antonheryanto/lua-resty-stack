@@ -2,9 +2,9 @@
 
 local new_tab = require "table.new"
 local cjson = require "cjson"
-local get_post = require "resty.stack.post".get
 local split = require "resty.stack.string".split
 local encode = cjson.encode
+local pcall = pcall
 local setmetatable = setmetatable
 local pairs = pairs
 local type = type
@@ -20,6 +20,19 @@ local print = ngx.print
 local exit = ngx.exit
 local log = ngx.log
 local WARN = ngx.WARN
+local read_body = ngx.req.read_body
+
+local function read_post(self)
+    read_body()
+    get_post_args()
+end
+
+local post
+local ok, resty_post = pcall(require, 'resty.post')
+if ok then
+    post = resty_post:new()
+    read_post = post.read
+end
 
 -- module index action 
 local function index(self)
@@ -31,7 +44,7 @@ end
 
 local _M = new_tab(0, 5)
 
-_M.VERSION = "0.1.0"
+_M.VERSION = "0.1.1"
 _M.services = {}
 _M.index = 'index'
 
@@ -162,8 +175,7 @@ function _M.load(param, path)
         get_user_id(c) 
     end
     -- process post/put data
-    param.m = (method == "POST" or method == "PUT") and get_post(c) or nil 
-    param.data = param.m
+    param.data = (method == "POST" or method == "PUT") and read_post(post) or nil 
 
     return { status = 200, body = handler(param) }
 end
