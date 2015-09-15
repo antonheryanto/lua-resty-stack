@@ -1,9 +1,5 @@
--- Copyright (C) Anton heryanto.
+-- Copyright (C) 2014 - 2015 Anton heryanto.
 
-local new_tab = require "table.new"
-local cjson = require "cjson"
-local split = require "resty.stack.string".split
-local encode = cjson.encode
 local pcall = pcall
 local setmetatable = setmetatable
 local pairs = pairs
@@ -12,6 +8,10 @@ local tonumber = tonumber
 local sub = string.sub
 local lower = string.lower
 local len = string.len
+local new_tab = require "table.new"
+local cjson = require "cjson"
+local split = require "resty.stack.string".split
+local has_resty_post, resty_post = pcall(require, 'resty.post')
 local ngx = ngx
 local var = ngx.var
 local req = ngx.req
@@ -21,34 +21,38 @@ local exit = ngx.exit
 local log = ngx.log
 local WARN = ngx.WARN
 local read_body = ngx.req.read_body
+local get_post_args = ngx.req.get_post_args
+local get_uri_args = ngx.req.get_uri_args
+local HTTP_OK = ngx.HTTP_OK
+local HTTP_NOT_FOUND = ngx.HTTP_NOT_FOUND
+local HTTP_UNAUTHORIZED = ngx.HTTP_UNAUTHORIZED
+-- error description
+local ERRORS = {
+    [HTTP_NOT_FOUND] = 'Page not found',
+    [HTTP_UNAUTHORIZED] = 'Authentication required'
+}
 
-local function read_post(self)
-    read_body()
-    get_post_args()
-end
-
-local post
-local ok, resty_post = pcall(require, 'resty.post')
-if ok then
-    post = resty_post:new()
-    read_post = post.read
-end
-
--- module index action 
-local function index(self)
-    local method = self.arg.method or var.request_method
-    local action = self[lower(method)]
-    if not action and (method == "POST" or method == "PUT") then action = self.save end
-    return action and action(self)
-end
-
+local INDEX = 'index'
 local _M = new_tab(0, 5)
-
 _M.VERSION = "0.1.1"
-_M.services = {}
-_M.index = 'index'
 
-function _M.module(modules)
+local mt = { __index = _M }
+function _M.new(self, config)
+    config = config or {}
+    config.base = config.base or '/'
+    config.base_length = len(config.base) + 1
+    local post = has_resty_post and resty_post:new(config.upload_path)
+    config.upload_path = config.upload_path or post and post.path
+    return setmetatable({
+        post = post,
+        config = config,
+        services = {}
+    }, mt)
+end
+
+function _M.module(self, modules)
+    if not modules then return end
+
     -- module 'string', 'function', 'table', sub { 'string', 'function', 'table' }
     for k,v in pairs(modules) do
         local key_type = type(k)
@@ -56,30 +60,31 @@ function _M.module(modules)
             for sk,sv in pairs(v) do
                 local tsk = type(sk)
                 if tsk == 'number' then sk = sv end 
-                local spath = tsk == 'string' and k.."."..sk or k ..".".. _M.index
+                local spath = tsk == 'string' and k.."."..sk or k ..".".. INDEX
                 local sfn = sv
                 if type(sv) == 'string' then
                     local ns = k ..".".. sk
                     spath = ns
                     sfn = ns
                 end
-                _M.use(spath,sfn)
+                self:use(spath,sfn)
             end
         else
             if key_type == 'number' then k = v end 
-            _M.use(k, v)
+            self:use(k, v)
         end
     end
 end
 
-function _M.use(path, fn)
+function _M.use(self, path, fn)
     if not path then return end
 
     -- validate path
     local tp = type(path)
     if tp ~= 'string' then 
         fn = path
-        path = sub(var.uri,2) or _M.index
+        local uri = sub(var.uri, 2)
+        path = len(uri) ~= 0 and uri or INDEX
     end
 
     -- validate fn
@@ -94,90 +99,117 @@ function _M.use(path, fn)
         o = require(fn)
     end
 
-    _M.services[path] = o
+    self.services[path] = o
 end
 
-function _M.run(conf)
+function _M.run(self)
     local header = ngx.header
     header['Access-Control-Allow-Origin'] = '*'
     header['Access-Control-Max-Age'] = 2520
     header['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE'
-    local param = {}
-    param.conf = conf
-    param.base = conf.base or '/'
-    param.base_length = len(param.base) + 1
-    param.services = _M.services
-    local res = _M.load(param)
-    ngx.status = res.status
 
-    local output = res.body
-    if not output then output = null end
-    if type(output) == 'table' then output = encode(output) end
+    local status, output = self:load()
+    if status and status ~= HTTP_OK then 
+        ngx.status = status 
+        output = { errors = { ERRORS[status] } }
+    end
 
-    -- get service
+    if not output then 
+        output = null 
+    end
+    
+    if type(output) == 'table' then 
+        output = cjson.encode(output) 
+    end
+
     print(output)
 end
 
-local not_found = { status = 404, body = { errors = {"page not found"} } }
-local not_authorize = { status = 401, body = { errors = {"Authentication required"} } }
-function _M.load(param, path)
-    param = param or {}
-    local path = path or sub(var.uri, param.base_length)
-    local uri = split(path, '/', 3)
-    local services = param.services
-    if not services then return not_found end 
+function _M.load(self, path)
+    local services = self.services
+    if not services then return HTTP_NOT_FOUND end 
     
-    -- implement home module
-    local home = param.home or 'index'
-    local module = (uri[1] == "" and services[home]) and home or uri[1]
-    local action = uri[2] ~= "" and uri[2]
+    local config = self.config
+    local path = path or sub(var.uri, config.base_length)
+    local uri = split(path, '/', 3) -- limit to 3 level
+    local module = (uri[1] == '' and services[INDEX]) and INDEX or uri[1]
+    local action = uri[2] ~= '' and uri[2]
     local service = services[module]
 
     if not service then
         if not action then
-            if not services[module ..".".. home] then return not_found end
-            action = home
-        elseif tonumber(action) then return not_found end
-        service = services[module ..".".. action]
-        if not service then return not_found end
-        action = uri[3] ~= "" and uri[3]
+            if not services[module ..'.'.. INDEX] then 
+                return HTTP_NOT_FOUND 
+            end
+
+            action = INDEX
+        elseif tonumber(action) then 
+            return HTTP_NOT_FOUND 
+        end
+        
+        service = services[module ..'.'.. action]
+
+        if not service then 
+            return HTTP_NOT_FOUND 
+        end
+
+        action = uri[3] ~= '' and uri[3] or nil
     end
 
-    -- attach to module
-    local get_user_id = services.auth and services.auth.get_user_id
-    local method = var.request_method
-    param.arg = req.get_uri_args()
-    param.get_user_id = get_user_id
-    if action and tonumber(action) then
-        param.arg.id = action
-        action = nil
-    end
-
+    -- parse route
+    local arg = get_uri_args()
+    local method = lower(var.request_method or arg.method)
     if not action then 
-        param.index = service.index or index
-        action = "index" 
+        action = method 
     end
-
-
-    if param.debug then 
-        log(WARN, 'load service ', module, ' with request ', method, ' and action ', action) 
-    end
-
-    local mt = { __index = service }
-    local c = setmetatable(param, mt)
-    local handler = c[action]
     
-
-    if handler == nil then return not_found end
-    -- validate authorization
-    if service.AUTHORIZE then
-        if not get_user_id then return not_authorize end
-        get_user_id(c) 
+    if action and tonumber(action) then
+        arg.id = action
+        action = method
     end
-    -- process post/put data
-    param.data = (method == "POST" or method == "PUT") and read_post(post) or nil 
+    
+    if not service[action] then
+        action = (method == 'post' or method == 'put') and 'save' or INDEX 
+    end
 
-    return { status = 200, body = handler(param) }
+    if config.debug then 
+        log(WARN, 'load service ', module, ' with request ',
+            method, ' and action ', action) 
+    end
+
+    local handler = service[action]
+    if not handler then
+        return HTTP_NOT_FOUND
+    end
+    
+    -- passing param to module
+    local param = {
+        config = config,
+        services = services,
+        arg = arg,
+        method = method,
+        action = action,
+        module = module
+    }
+    -- validate authorization support at module and method level
+    local validate_user = self.validate_user
+    local auth = service.AUTHORIZES
+    if validate_user and (service.AUTHORIZE or (auth and auth[action])) then
+        validate_user(param)
+    end
+    
+    -- process post/put data
+    local post = self.post
+    if method == 'post' or method == 'put' then
+        if post then
+            param.data = post:read()
+        else
+            read_body()
+            param.data = get_post_args()
+        end
+    end
+
+    return HTTP_OK, handler(param)
 end
 
 return _M

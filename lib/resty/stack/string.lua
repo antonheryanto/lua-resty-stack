@@ -41,7 +41,7 @@ function string.split(self, delimiter, limit)
     if not self or type(self) ~= "string" then return end
     local length = len(self)
 
-    if length == 1 then return {self} end
+    if self ~= delimiter and length == 1 then return {self} end
 
     local result = limit and new_tab(limit, 0) or {}
     local index = 0
