@@ -146,8 +146,8 @@ function _M.load(self, path)
         elseif tonumber(action) then 
             return HTTP_NOT_FOUND 
         end
-        
-        service = services[module ..'.'.. action]
+        module = module ..'.'.. action
+        service = services[module]
 
         if not service then 
             return HTTP_NOT_FOUND 
