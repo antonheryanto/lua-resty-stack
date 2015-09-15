@@ -158,7 +158,7 @@ function _M.load(self, path)
 
     -- parse route
     local arg = get_uri_args()
-    local method = lower(var.request_method or arg.method)
+    local method = lower(arg.method or var.request_method)
     if not action then 
         action = method 
     end
