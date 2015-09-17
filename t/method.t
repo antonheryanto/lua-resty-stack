@@ -3,7 +3,7 @@ use Cwd qw(cwd);
 
 repeat_each(2);
 
-plan tests => repeat_each() * (blocks() * 27);
+plan tests => repeat_each() * (blocks() * 18);
 
 my $pwd = cwd();
 
@@ -51,6 +51,4 @@ return _M
 'HEAD /t', 'OPTIONS /t']
 --- response_body eval
 ['get', 'post', 'put', 'delete', 'post', 'put', 'delete', '', '']
---- no_error_log
-[error]
 

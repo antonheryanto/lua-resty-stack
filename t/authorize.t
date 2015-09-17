@@ -3,7 +3,7 @@ use Cwd qw(cwd);
 
 repeat_each(2);
 
-plan tests => repeat_each() * (blocks() * 6); 
+plan tests => repeat_each() * (blocks() * 3); 
 
 my $pwd = cwd();
 
@@ -47,8 +47,6 @@ __DATA__
 ['GET /authorize','POST /authorize', 'GET /authorize?auth=1']
 --- error_code eval
 [200, 200, 200]
---- no_error_log
-[error]
 
 === TEST 2: Authorizes
 --- http_config eval: $::HttpConfig
@@ -60,8 +58,6 @@ __DATA__
 ['GET /authorizes','POST /authorizes', 'GET /authorizes?auth=1']
 --- error_code eval
 [200, 200, 200]
---- no_error_log
-[error]
 
 === TEST 3: use Authorize
 --- http_config eval: $::HttpConfig
@@ -76,8 +72,6 @@ __DATA__
 ['GET /authorize','POST /authorize', 'GET /authorize?auth=1']
 --- error_code eval
 [401, 401, 200]
---- no_error_log
-[error]
 
 === TEST 4: use Authorizes
 --- http_config eval: $::HttpConfig
@@ -92,6 +86,4 @@ __DATA__
 ['GET /authorizes','POST /authorizes', 'GET /authorizes?auth=1']
 --- error_code eval
 [401, 200, 200]
---- no_error_log
-[error]
 

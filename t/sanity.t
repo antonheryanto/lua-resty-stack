@@ -3,12 +3,12 @@ use Cwd qw(cwd);
 
 repeat_each(2);
 
-plan tests => repeat_each() * (blocks() * 6);
+plan tests => repeat_each() * (blocks() * 4);
 
 my $pwd = cwd();
 
 our $HttpConfig = <<"_EOC_";
-    lua_package_path "$pwd/lib/?.lua;;";
+    lua_package_path "$pwd/t/servroot/html/?.lua;$pwd/lib/?.lua;;";
 _EOC_
 
 no_long_string();
@@ -18,7 +18,7 @@ run_tests();
 
 __DATA__
 
-=== TEST 1: basic usage
+=== TEST 1: inline use
 --- http_config eval: $::HttpConfig
 --- config
     location /t {
@@ -33,16 +33,14 @@ __DATA__
 --- request
 GET /t
 --- response_body: ok
---- no_error_log
-[error]
 
-=== TEST 3: define module
+=== TEST 2: use module
 --- http_config
     lua_package_path "${prefix}../../lib/?.lua;${prefix}html/?.lua;;";       
     init_by_lua "
         local stack = require 'resty.stack'
         app = stack:new()
-        app:module({'hello'})
+        app:use('hello')
     ";
 --- config
     location /hello {
@@ -58,8 +56,6 @@ return _M
 --- request
 GET /hello
 --- response_body: hello
---- no_error_log
-[error]
 
 === TEST 3: override status
 --- http_config eval: $::HttpConfig
@@ -82,6 +78,4 @@ GET /hello
 [404, 202, 201, 204]
 --- response_body eval
 ['', 'accepted', 'created', '']
---- no_error_log
-[error]
 

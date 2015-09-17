@@ -10,14 +10,11 @@ local lower = string.lower
 local len = string.len
 local new_tab = require "table.new"
 local cjson = require "cjson"
-local split = require "resty.stack.string".split
 local has_resty_post, resty_post = pcall(require, 'resty.post')
 local ngx = ngx
 local var = ngx.var
 local req = ngx.req
-local null = ngx.null
 local print = ngx.print
-local exit = ngx.exit
 local log = ngx.log
 local WARN = ngx.WARN
 local read_body = ngx.req.read_body
@@ -26,9 +23,10 @@ local get_uri_args = ngx.req.get_uri_args
 local HTTP_OK = ngx.HTTP_OK
 local HTTP_NOT_FOUND = ngx.HTTP_NOT_FOUND
 local HTTP_UNAUTHORIZED = ngx.HTTP_UNAUTHORIZED
-local INDEX = 'index'
+local re_find = ngx.re.find
+local REST = {get = true, post = true, put = true, delete = true, save = true}
 local _M = new_tab(0, 9)
-_M.VERSION = "0.1.1"
+_M.VERSION = "0.2.0"
 
 local mt = { __index = _M }
 function _M.new(self, config)
@@ -40,31 +38,40 @@ function _M.new(self, config)
     return setmetatable({
         post = post,
         config = config,
+        paths = {},
         services = {}
     }, mt)
 end
 
 function _M.module(self, modules)
-    if not modules then return end
+    if not modules or type(modules) ~= 'table' then 
+        return 
+    end
 
     -- module 'string', 'function', 'table', sub { 'string', 'function', 'table' }
     for k,v in pairs(modules) do
         local key_type = type(k)
-        if type(v) == "table" then
+        if type(v) == 'table' then
             for sk,sv in pairs(v) do
                 local tsk = type(sk)
-                if tsk == 'number' then sk = sv end 
-                local spath = tsk == 'string' and k.."."..sk or k ..".".. INDEX
+                if tsk == 'number' then 
+                    sk = sv 
+                end
+
+                local spath = tsk == 'string' and k..'/'..sk or k
                 local sfn = sv
                 if type(sv) == 'string' then
-                    local ns = k ..".".. sk
-                    spath = ns
-                    sfn = ns
+                    spath = k ..'/'.. sk
+                    sfn = k ..'.'.. sk
                 end
-                self:use(spath,sfn)
+
+                self:use(spath, sfn)
             end
         else
-            if key_type == 'number' then k = v end 
+            if key_type == 'number' then 
+                k = v 
+            end
+
             self:use(k, v)
         end
     end
@@ -74,11 +81,13 @@ function _M.use(self, path, fn)
     if not path then return end
 
     -- validate path
+    local config = self.config
+    local services = self.services
+    local paths = self.paths
     local tp = type(path)
     if tp ~= 'string' then 
         fn = path
-        local uri = sub(var.uri, 2)
-        path = len(uri) ~= 0 and uri or INDEX
+        path = sub(var.uri, config.base_length)
     end
 
     -- validate fn
@@ -93,7 +102,13 @@ function _M.use(self, path, fn)
         o = require(fn)
     end
 
-    self.services[path] = o
+    -- register path
+    services[path] = o
+    for m,_ in pairs(o) do
+        if not REST[m] then
+            paths[path..'/'..m] = { module = path, action = m }
+        end
+    end
 end
 
 -- default header, override function to change
@@ -128,60 +143,55 @@ function _M.load(self, path)
     if not services then return HTTP_NOT_FOUND end 
     
     local config = self.config
+    local paths = self.paths
     local path = path or sub(var.uri, config.base_length)
-    local uri = split(path, '/', 4) -- limit to 4 level
-    local module = (uri[1] == '' and services[INDEX]) and INDEX or uri[1]
-    local action = uri[2] ~= '' and uri[2] or nil
-    local extra = uri[3] ~= '' and uri[3] or nil
-    local service = services[module]
-
-    -- check sub modules
-    if not service then
-        if not action then
-            if not services[module ..'.'.. INDEX] then 
-                return HTTP_NOT_FOUND 
-            end
-
-            action = INDEX
-        elseif tonumber(action) then 
-            return HTTP_NOT_FOUND 
-        end
-        module = module ..'.'.. action
-        service = services[module]
-
-        if not service then 
-            return HTTP_NOT_FOUND 
-        end
-
-        action = extra
-        extra = uri[4] ~= '' and uri[4] or nil
-    end
-
-    -- parse route
+    -- check services
+    local service = services[path]
+    local module = service and path
     local arg = get_uri_args()
     local method = lower(arg.method or var.request_method)
-    if action and tonumber(action) then
-        arg.id = action
-        action = extra
+    local handler = service and service[method]
+    local action = handler and method
+
+    -- check paths
+    if not module and paths[path] then
+        module = paths[path].module
+        action = paths[path].action
+    end
+    
+    -- check args number module/:id/action
+    if not module then
+        local from, to, err = re_find(path, "([0-9]+)", "jo")
+        if from then
+            module = sub(path, 1, from - 2)
+            action = sub(path, to + 2)
+            arg.id = sub(path, from, to)
+        end
+    end
+    
+    if not module then 
+        return HTTP_NOT_FOUND
     end
 
-    if not action then 
+    -- handle special method
+    if module and (not action or action == '') then 
         if method == 'head' or method == 'options' then 
             return HTTP_OK
         end
 
         action = method
-        if not service[action] and (method == 'post' or method == 'put') then
+        if method == 'post' or method == 'put' then
             action = 'save'
         end
     end
-
+    
     if config.debug then 
-        log(WARN, 'load service ', module, ' with request ',
-            method, ' and action ', action) 
+        log(WARN, 'load service ', module, ', with request ',
+            method, ', and action ', action, ', id ', arg.id ) 
     end
 
-    local handler = service[action]
+    service = service or services[module]
+    handler = handler or service[action]
     if not handler then
         return HTTP_NOT_FOUND
     end
