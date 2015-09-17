@@ -26,14 +26,8 @@ local get_uri_args = ngx.req.get_uri_args
 local HTTP_OK = ngx.HTTP_OK
 local HTTP_NOT_FOUND = ngx.HTTP_NOT_FOUND
 local HTTP_UNAUTHORIZED = ngx.HTTP_UNAUTHORIZED
--- error description
-local ERRORS = {
-    [HTTP_NOT_FOUND] = 'Page not found',
-    [HTTP_UNAUTHORIZED] = 'Authentication required'
-}
-
 local INDEX = 'index'
-local _M = new_tab(0, 5)
+local _M = new_tab(0, 9)
 _M.VERSION = "0.1.1"
 
 local mt = { __index = _M }
@@ -92,7 +86,7 @@ function _M.use(self, path, fn)
     local tf = type(fn)
     local o
     if tf == 'function' then
-        o = { index = fn }
+        o = { get = fn }
     elseif tf == 'table' then
         o = fn
     elseif tf == 'string' then
@@ -102,20 +96,24 @@ function _M.use(self, path, fn)
     self.services[path] = o
 end
 
-function _M.run(self)
+-- default header, override function to change
+function _M.set_header()
     local header = ngx.header
     header['Access-Control-Allow-Origin'] = '*'
     header['Access-Control-Max-Age'] = 2520
-    header['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE'
+    header['Access-Control-Allow-Methods'] = 'GET,POST,PUT,DELETE,HEAD,OPTIONS'
+end
+
+function _M.run(self)
+    _M.set_header()
 
     local status, output = self:load()
-    if status and status ~= HTTP_OK then 
-        ngx.status = status 
-        output = { errors = { ERRORS[status] } }
+    if status then
+        ngx.status = status
     end
 
     if not output then 
-        output = null 
+        return
     end
     
     if type(output) == 'table' then 
@@ -131,11 +129,13 @@ function _M.load(self, path)
     
     local config = self.config
     local path = path or sub(var.uri, config.base_length)
-    local uri = split(path, '/', 3) -- limit to 3 level
+    local uri = split(path, '/', 4) -- limit to 4 level
     local module = (uri[1] == '' and services[INDEX]) and INDEX or uri[1]
-    local action = uri[2] ~= '' and uri[2]
+    local action = uri[2] ~= '' and uri[2] or nil
+    local extra = uri[3] ~= '' and uri[3] or nil
     local service = services[module]
 
+    -- check sub modules
     if not service then
         if not action then
             if not services[module ..'.'.. INDEX] then 
@@ -153,23 +153,27 @@ function _M.load(self, path)
             return HTTP_NOT_FOUND 
         end
 
-        action = uri[3] ~= '' and uri[3] or nil
+        action = extra
+        extra = uri[4] ~= '' and uri[4] or nil
     end
 
     -- parse route
     local arg = get_uri_args()
     local method = lower(arg.method or var.request_method)
-    if not action then 
-        action = method 
-    end
-    
     if action and tonumber(action) then
         arg.id = action
-        action = method
+        action = extra
     end
-    
-    if not service[action] then
-        action = (method == 'post' or method == 'put') and 'save' or INDEX 
+
+    if not action then 
+        if method == 'head' or method == 'options' then 
+            return HTTP_OK
+        end
+
+        action = method
+        if not service[action] and (method == 'post' or method == 'put') then
+            action = 'save'
+        end
     end
 
     if config.debug then 
@@ -209,7 +213,8 @@ function _M.load(self, path)
         end
     end
 
-    return HTTP_OK, handler(param)
+    local output, status = handler(param)
+    return status, handler(param)
 end
 
 return _M

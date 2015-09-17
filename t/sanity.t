@@ -3,7 +3,7 @@ use Cwd qw(cwd);
 
 repeat_each(2);
 
-plan tests => repeat_each() * (blocks() * 3);
+plan tests => repeat_each() * (blocks() * 6);
 
 my $pwd = cwd();
 
@@ -36,7 +36,7 @@ GET /t
 --- no_error_log
 [error]
 
-=== TEST 2: define module
+=== TEST 3: define module
 --- http_config
     lua_package_path "${prefix}../../lib/?.lua;${prefix}html/?.lua;;";       
     init_by_lua "
@@ -58,6 +58,30 @@ return _M
 --- request
 GET /hello
 --- response_body: hello
+--- no_error_log
+[error]
+
+=== TEST 3: override status
+--- http_config eval: $::HttpConfig
+--- config
+    location /t {
+      content_by_lua "
+        local app = require 'resty.stack':new()
+        app:use({
+            get = function() return nil, 404 end,
+            post = function() return 'accepted', 202 end,
+            put = function() return 'created', 201 end,
+            delete = function() return nil, 204 end
+        }) 
+        app:run()
+      ";
+    }
+--- request eval
+['GET /t', 'POST /t', 'PUT /t', 'DELETE /t']
+--- error_code eval
+[404, 202, 201, 204]
+--- response_body eval
+['', 'accepted', 'created', '']
 --- no_error_log
 [error]
 
