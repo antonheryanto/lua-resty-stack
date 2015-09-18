@@ -23,8 +23,8 @@ our $HttpConfig = <<"_EOC_";
             post = function() end
         })
         function auth(self)
-            if not self.arg.auth then
-                ngx.status = ngx.HTTP_UNAUTHORIZED
+            if self.arg.auth then
+                return true
             end
         end
     ";

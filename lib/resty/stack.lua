@@ -122,20 +122,20 @@ end
 function _M.run(self)
     _M.set_header()
 
-    local status, output = self:load()
+    local status, body = self:load()
     if status then
         ngx.status = status
     end
 
-    if not output then 
+    if not body then 
         return
     end
     
-    if type(output) == 'table' then 
-        output = cjson.encode(output) 
+    if type(body) == 'table' then 
+        body = cjson.encode(body) 
     end
 
-    print(output)
+    print(body)
 end
 
 function _M.load(self, path)
@@ -206,10 +206,11 @@ function _M.load(self, path)
         module = module
     }
     -- validate authorization support at module and method level
-    local validate_user = self.validate_user
-    local auth = service.AUTHORIZES
-    if validate_user and (service.AUTHORIZE or (auth and auth[action])) then
-        validate_user(param)
+    local user = self.validate_user
+    local auth = service.AUTHORIZE
+    local auths = service.AUTHORIZES
+    if user and (auth or (auths and auths[action])) and not user(param) then
+        return HTTP_UNAUTHORIZED
     end
     
     -- process post/put data
@@ -223,8 +224,19 @@ function _M.load(self, path)
         end
     end
 
-    local output, status = handler(param)
-    return status, handler(param)
+    -- execute begin request hook
+    if self.begin_request then 
+        self.begin_request(param) 
+    end
+
+    local body, status = handler(param)
+
+    -- execute end request hook
+    if self.end_request then
+        self.end_request(param)
+    end
+
+    return status, body
 end
 
 return _M
