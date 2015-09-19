@@ -48,7 +48,8 @@ function _M.module(self, modules)
         return 
     end
 
-    -- module 'string', 'function', 'table', sub { 'string', 'function', 'table' }
+    -- module 'string', 'function', 'table'
+    -- submodule { 'string', 'function', 'table' }
     for k,v in pairs(modules) do
         local key_type = type(k)
         if type(v) == 'table' then
