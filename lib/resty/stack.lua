@@ -193,7 +193,7 @@ function _M.load(self, path)
     end
 
     service = service or services[module]
-    handler = handler or service[action]
+    handler = handler or service and service[action]
     if not handler then
         return HTTP_NOT_FOUND
     end
