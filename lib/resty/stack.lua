@@ -36,6 +36,7 @@ function _M.new(self, config)
     local post = has_resty_post and resty_post:new(config.upload_path)
     config.upload_path = config.upload_path or post and post.path
     return setmetatable({
+        render = config.render or cjson.encode,
         post = post,
         config = config,
         paths = {},
@@ -133,7 +134,7 @@ function _M.run(self)
     end
     
     if type(body) == 'table' then 
-        body = cjson.encode(body) 
+        body = self.render(body) 
     end
 
     print(body)
