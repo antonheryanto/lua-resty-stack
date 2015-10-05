@@ -1,6 +1,5 @@
 local new_tab = require "table.new"
 local string = string
-local len = string.len
 local find = string.find
 local sub = string.sub
 local gsub = string.gsub
@@ -39,7 +38,7 @@ end
 
 function string.split(self, delimiter, limit)
     if not self or type(self) ~= "string" then return end
-    local length = len(self)
+    local length = #self
 
     if self ~= delimiter and length == 1 then return {self} end
 

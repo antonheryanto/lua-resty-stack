@@ -35,7 +35,7 @@ end
 function _M.redis(conf)
     conf = conf or {}
     local r = redis:new()
-    r:set_timeout(conf.timeout)
+    r:set_timeout(conf.timeout or 1000)
     local ok,err = conf.socket and r:connect(conf.socket) 
         or r:connect(conf.host or '127.0.0.1', conf.port or 6379)
 
@@ -54,12 +54,17 @@ function _M.redis(conf)
         local fields = (#args == 1 and type(args[1]) == 'table') and args[1] or args
         local n = #fields
         local m = new_tab(0, n)
-        local data = r:hmget(key,unpack(fields)) 
-        for i=1,n do
-            local k = fields[i]
-            local v = data[i]
-            if v ~= null then m[k] = v end
+        r:init_pipeline(n)
+        for i = 1, n do
+            r:hget(key, fields[i])
         end
+
+        local data = r:commit_pipeline()
+        for i = 1, n do
+            local v = data[i]
+            if v ~= null then m[fields[i]] = v end
+        end
+
         return m
     end
 
@@ -92,13 +97,14 @@ function _M.keep(db, conf)
     if not db or not db.set_keepalive then return end
     conf = conf or {}
 
-    local ok,err = db:set_keepalive(conf.keep_idle or 0, conf.keep_size or 1024)
+    if conf.debug then
+        local times, ex = db:get_reused_times()
+        log(WARN, "reused: ", times, " error: ", ex)
+    end
 
+    local ok,err = db:set_keepalive(conf.keep_idle or 1000, conf.keep_size or 1024)
     if not ok then 
         log(ERR, "failed to keepalive with message: ", err) 
-    --else
-    --    local times, ex = db:get_reused_times()
-    --    log(WARN, "reused: ", times, " error: ",ex)
     end
 end
 
