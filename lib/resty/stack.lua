@@ -7,7 +7,6 @@ local type = type
 local tonumber = tonumber
 local sub = string.sub
 local lower = string.lower
-local len = string.len
 local new_tab = require "table.new"
 local cjson = require "cjson"
 local has_resty_post, resty_post = pcall(require, 'resty.post')
@@ -32,7 +31,7 @@ local mt = { __index = _M }
 function _M.new(self, config)
     config = config or {}
     config.base = config.base or '/'
-    config.base_length = len(config.base) + 1
+    config.base_length = #config.base + 1
     local post = has_resty_post and resty_post:new(config.upload_path)
     config.upload_path = config.upload_path or post and post.path
     return setmetatable({
