@@ -20,8 +20,7 @@ our $HttpConfig = <<"_EOC_";
             return 'x'..id
         end
         local stack = require 'resty.stack'
-        app = stack:new()
-        app.config.debug = true
+        app = stack:new({debug = true})
         app:use('t', _M)
         app:use('t/m', _M)
     ";
@@ -45,7 +44,7 @@ __DATA__
 --- response_body eval
 ['get', 'get1', 'x', 'get1', 'x1']
 
-=== TEST 2: first level routing
+=== TEST 2: second level routing
 --- http_config eval: $::HttpConfig
 --- config 
     location /t/m {

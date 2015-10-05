@@ -64,7 +64,7 @@ __DATA__
 --- config
     location /authorize {
         content_by_lua "
-            app.validate_user = auth
+            app.authorize = auth
             app:run()
         ";
     }
@@ -78,7 +78,7 @@ __DATA__
 --- config
     location /authorizes {
         content_by_lua "
-            app.validate_user = auth
+            app.authorize = auth
             app:run()
         ";
     }

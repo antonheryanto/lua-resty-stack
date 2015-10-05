@@ -18,7 +18,7 @@ __DATA__
     init_by_lua "
         local stack = require 'resty.stack'
         app = stack:new()
-        app:module({'t', t = {'m'}, a = 't.m'})
+        app:service({'t', t = {'m'}, a = 't.m'})
     ";
 --- config 
     location /t {

@@ -34,7 +34,7 @@ __DATA__
 GET /t
 --- response_body: ok
 
-=== TEST 2: use module
+=== TEST 2: use service
 --- http_config
     lua_package_path "${prefix}../../lib/?.lua;${prefix}html/?.lua;;";       
     init_by_lua "
