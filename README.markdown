@@ -35,49 +35,56 @@ Installation
 ============
 
 * download or clone this repo
-* copy to openresty/lualib/resty/ or to Application path lib/resty
+* copy lib/resty/stack.lua to (Openresty Path)/lualib/resty/ or to (Application path)/resty
 
 [Back to TOC](#table-of-contents)
 
 How to use
 ==========
-edit nginx.conf
+
+Recommended Application folder structure
+* conf
+** nginx.conf
+* resty
+** stack.lua
+** post.lua
+** template.lua
+* api
+** app.lua
+** hello.lua
 
 ```nginx.conf
-lua_package_path "$prefix/api/?.lua;$prefix/lib/?.lua;;";
-server {
-  listen 8080;
-  
-  location /hello {
-    content_by_lua '
-      local stack = require "resty.stack"
-      local app = stack:new()
-      app:use(function(self)
-        return "Hello" 
-      end)
-      app:run()
-    ';
-  }
+daemon off;
+master process off;
+error_log log/error.log warn;
+event {}
+http {
+    client_body_temp_path logs;
+    fastcgi_temp_path logs;
+    proxy_temp_path logs;
+    scgi_temp_path logs;
+    uwsgi_temp_path logs;
 
-  location /api {
-    content_by_lua '
-      local stack = require "resty.stack"
-      local app = stack:new()
-      app:use({
-        get = function(self)
-          return "get Hello" 
-        end
-
-        post = function(self) 
-          return "post Hello"
-        end
-      })
-      app:run()
-    ';
-  }
+    init_by_lua_file "api/app.lua";
+    server {
+        listen 8080;
+        lua_code_cache off;
+        location /api {
+            content_by_lua "app:run()";
+        }
+    }
 }
 ```
-uses separated files
+
+app.lua
+```lua
+    local stack = require "resty.stack"
+    app = stack:new()
+    app:service ({ api = { 
+        'hello'
+    }})
+```
+
 hello.lua
 ```lua
 local _M = {}
@@ -86,7 +93,7 @@ function _M.get(self)
   return "get Hello" 
 end
 
-function _M.save(self) 
+function _M.post(self) 
   return "post Hello"
 end
 
@@ -95,18 +102,6 @@ function _M.delete(self)
 end
 
 return _M
-```
-
-```nginx.conf
- location /api {
-    default_type "application/json; charset=UTF-8";
-    content_by_lua '
-      local stack = require "resty.stack"
-      local app = stack:new()
-      app:use(require "hello")
-      app:run()
-    '
- }
 ```
 
 ```sh
@@ -144,16 +139,16 @@ register function or module
 
     function to execute when path is accessed
 
-module
+service
 ------
 
-`syntax: app:module(table)`
+`syntax: app:service(services)`
 
-register module using lua table 
+register servicese using lua table 
 
-* `table`
+* `services`
     
-    table list module to load
+    table of services to load
 
 run
 ---
@@ -161,6 +156,37 @@ run
 `syntax: app:run()`
 
 running the application
+
+authorize
+---------
+
+`syntax: function app.authorize(self) end`
+
+implement authorize function for secure module
+
+
+render
+------
+
+`syntax: function app.render(self)`
+
+implement plugable render to override default render
+
+
+begin\_request
+-------------
+
+`syntax: function app.begin\_request(self)`
+
+implement begin request hook
+
+
+end\_request
+------------
+
+`synatx: function app.end\_request(self)`
+
+implement end request hook
 
 
 [Back to TOC](#table-of-contents)
