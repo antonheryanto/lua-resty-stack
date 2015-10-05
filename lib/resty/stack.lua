@@ -19,23 +19,20 @@ local WARN = ngx.WARN
 local read_body = ngx.req.read_body
 local get_post_args = ngx.req.get_post_args
 local get_uri_args = ngx.req.get_uri_args
+local re_find = ngx.re.find
 local HTTP_OK = ngx.HTTP_OK
 local HTTP_NOT_FOUND = ngx.HTTP_NOT_FOUND
 local HTTP_UNAUTHORIZED = ngx.HTTP_UNAUTHORIZED
-local re_find = ngx.re.find
-local REST = {get = true, post = true, put = true, delete = true, save = true}
 local _M = new_tab(0, 9)
-_M.VERSION = "0.2.0"
+_M.VERSION = "0.2.1"
 
 local mt = { __index = _M }
 function _M.new(self, config)
     config = config or {}
-    config.base = config.base or '/'
-    config.base_length = #config.base + 1
+    config.base_length = config.base and #config.base + 2 or 2
     local post = has_resty_post and resty_post:new(config.upload_path)
     config.upload_path = config.upload_path or post and post.path
     return setmetatable({
-        render = config.render or cjson.encode,
         post = post,
         config = config,
         paths = {},
@@ -43,15 +40,14 @@ function _M.new(self, config)
     }, mt)
 end
 
-function _M.module(self, modules)
-    if not modules or type(modules) ~= 'table' then 
+function _M.service(self, services)
+    if not services or type(services) ~= 'table' then 
         return 
     end
 
-    -- module 'string', 'function', 'table'
-    -- submodule { 'string', 'function', 'table' }
-    for k,v in pairs(modules) do
-        local key_type = type(k)
+    -- service 'string', 'function', 'table'
+    -- sub service { 'string', 'function', 'table' }
+    for k,v in pairs(services) do
         if type(v) == 'table' then
             for sk,sv in pairs(v) do
                 local tsk = type(sk)
@@ -66,14 +62,31 @@ function _M.module(self, modules)
                     sfn = k ..'.'.. sk
                 end
 
-                self:use(spath, sfn)
+                _M.use(self, spath, sfn)
             end
         else
-            if key_type == 'number' then 
+            if type(k) == 'number' then 
                 k = v 
             end
 
-            self:use(k, v)
+            _M.use(self, k, v)
+        end
+    end
+end
+
+-- provides routes table
+-- TODO: predefines method and regex options
+function _M.route(self, path, service)
+    local paths = self.paths
+    for m,o in pairs(service) do
+        local mt = type(o)
+        local mp = path..'/'..m
+        -- only add function
+        if mt == 'function' then
+            paths[mp] = { service = path, action = m }
+        -- recursive route add
+        elseif mt == 'table' then -- recursive route add
+            _M.route(self, mp, o) 
         end
     end
 end
@@ -94,34 +107,37 @@ function _M.use(self, path, fn)
     -- validate fn
     if not fn then fn = require(path) end 
     local tf = type(fn)
-    local o
+    local service
     if tf == 'function' then
-        o = { get = fn }
+        service = { get = fn }
     elseif tf == 'table' then
-        o = fn
+        service = fn
     elseif tf == 'string' then
-        o = require(fn)
+        service = require(fn)
     end
 
     -- register path
-    services[path] = o
-    for m,_ in pairs(o) do
-        if not REST[m] then
-            paths[path..'/'..m] = { module = path, action = m }
-        end
-    end
+    services[path] = service
+    _M.route(self, path, service)
 end
 
 -- default header, override function to change
-function _M.set_header()
+function _M.set_header(self)
     local header = ngx.header
     header['Access-Control-Allow-Origin'] = '*'
     header['Access-Control-Max-Age'] = 2520
     header['Access-Control-Allow-Methods'] = 'GET,POST,PUT,DELETE,HEAD,OPTIONS'
+    header['Content-Type'] = 'application/json; charset=utf-8'
+end
+
+-- default table render
+-- TODO: plugable render
+function _M.render(self, body)
+    return cjson.encode(body)
 end
 
 function _M.run(self)
-    _M.set_header()
+    self.set_header(self)
 
     local status, body = self:load()
     if status then
@@ -133,84 +149,66 @@ function _M.run(self)
     end
     
     if type(body) == 'table' then 
-        body = self.render(body) 
+        body = self.render(self, body) 
     end
 
     print(body)
 end
 
 function _M.load(self, path)
-    local services = self.services
-    if not services then return HTTP_NOT_FOUND end 
+    local paths = self.paths
+    if not paths then 
+        return HTTP_NOT_FOUND 
+    end 
     
     local config = self.config
-    local paths = self.paths
+    local services = self.services
     local path = path or sub(var.uri, config.base_length)
-    -- check services
-    local service = services[path]
-    local module = service and path
     local arg = get_uri_args()
     local method = lower(arg.method or var.request_method)
-    local handler = service and service[method]
-    local action = handler and method
-
-    -- check paths
-    if not module and paths[path] then
-        module = paths[path].module
-        action = paths[path].action
+    if (method == 'head' or method == 'options') and paths[path..'/get'] then 
+        return HTTP_OK
     end
-    
-    -- check args number module/:id/action
-    if not module then
+
+    -- check path or path/method
+    local fn = paths[path] or paths[path..'/'..method]
+
+    -- check args number service/:id/action
+    if not fn then
         local from, to, err = re_find(path, "([0-9]+)", "jo")
         if from then
-            module = sub(path, 1, from - 2)
-            action = sub(path, to + 2)
+            local service = sub(path, 1, from - 2)
+            local action = sub(path, to + 2)
+            if action == '' then 
+                action = method
+            end
+
+            fn = paths[service..'/'..action]
             arg.id = sub(path, from, to)
         end
     end
-    
-    if not module then 
+
+    if not fn then 
         return HTTP_NOT_FOUND
     end
 
-    -- handle special method
-    if module and (not action or action == '') then 
-        if method == 'head' or method == 'options' then 
-            return HTTP_OK
-        end
-
-        action = method
-        if method == 'post' or method == 'put' then
-            action = 'save'
-        end
-    end
-    
     if config.debug then 
-        log(WARN, 'load service ', module, ', with request ',
-            method, ', and action ', action, ', id ', arg.id ) 
+        log(WARN, 'path ', path, ' load service ', fn.service, ', with request ',
+            method, ', and action ', fn.action, ', id ', arg.id ) 
     end
 
-    service = service or services[module]
-    handler = handler or service and service[action]
+    local service = services[fn.service]
+    local handler = service and service[fn.action]
     if not handler then
         return HTTP_NOT_FOUND
     end
     
-    -- passing param to module
-    local param = {
-        config = config,
-        services = services,
-        arg = arg,
-        method = method,
-        action = action,
-        module = module
-    }
-    -- validate authorization support at module and method level
-    local user = self.validate_user
+    self.arg = arg
+    -- validate authorization support at service and method level
+    local user = self.authorize
     local auth = service.AUTHORIZE
     local auths = service.AUTHORIZES
-    if user and (auth or (auths and auths[action])) and not user(param) then
+    if user and (auth or (auths and auths[fn.action])) and not user(self) then
         return HTTP_UNAUTHORIZED
     end
     
@@ -218,23 +216,23 @@ function _M.load(self, path)
     local post = self.post
     if method == 'post' or method == 'put' then
         if post then
-            param.data = post:read()
+            self.data = post:read()
         else
             read_body()
-            param.data = get_post_args()
+            self.data = get_post_args()
         end
     end
 
     -- execute begin request hook
     if self.begin_request then 
-        self.begin_request(param) 
+        self.begin_request(self) 
     end
 
-    local body, status = handler(param)
+    local body, status = handler(self)
 
     -- execute end request hook
     if self.end_request then
-        self.end_request(param)
+        self.end_request(self)
     end
 
     return status, body
