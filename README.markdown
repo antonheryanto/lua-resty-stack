@@ -47,8 +47,8 @@ Recommended Application folder structure
   * nginx.conf
 * resty
   * stack.lua
-  * post.lua
-  * template.lua
+  * [post.lua](#see-also) -- optional for advance post process like formdata, json and file upload
+  * [template.lua](#see-also) -- optional for templating for override render
 * api
   * config.lua 
   * app.lua
@@ -80,8 +80,8 @@ http {
 config.lua
 ```lua
 return {
-    debug: true,
-    redis: { host = '127.0.0.1', port = 6379 },
+    debug = true,
+    redis = { host = '127.0.0.1', port = 6379 },
 }
 ```
 
@@ -178,7 +178,7 @@ implement authorize function for secure module
 render
 ------
 
-`syntax: function app.render(self)`
+`syntax: function app.render(self) end`
 
 implement plugable render to override default render
 
@@ -186,7 +186,7 @@ implement plugable render to override default render
 begin\_request
 -------------
 
-`syntax: function app.begin_request(self)`
+`syntax: function app.begin_request(self) end`
 
 implement begin request hook
 
@@ -194,7 +194,7 @@ implement begin request hook
 end\_request
 ------------
 
-`syntax: function app.end_request(self)`
+`syntax: function app.end_request(self) end`
 
 implement end request hook
 
