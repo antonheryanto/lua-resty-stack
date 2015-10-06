@@ -44,14 +44,15 @@ How to use
 
 Recommended Application folder structure
 * conf
-** nginx.conf
+  * nginx.conf
 * resty
-** stack.lua
-** post.lua
-** template.lua
+  * stack.lua
+  * [post.lua](#see-also) -- optional for advance post process like formdata, json and file upload
+  * [template.lua](#see-also) -- optional for templating for override render
 * api
-** app.lua
-** hello.lua
+  * config.lua 
+  * app.lua
+  * hello.lua
 
 ```nginx.conf
 daemon off;
@@ -76,10 +77,19 @@ http {
 }
 ```
 
+config.lua
+```lua
+return {
+    debug = true,
+    redis = { host = '127.0.0.1', port = 6379 },
+}
+```
+
 app.lua
 ```lua
-    local stack = require "resty.stack"
-    app = stack:new()
+    local stack = require 'resty.stack'
+    local config = require 'api.config'
+    app = stack:new(config)
     app:service ({ api = { 
         'hello'
     }})
@@ -168,7 +178,7 @@ implement authorize function for secure module
 render
 ------
 
-`syntax: function app.render(self)`
+`syntax: function app.render(self) end`
 
 implement plugable render to override default render
 
@@ -176,7 +186,7 @@ implement plugable render to override default render
 begin\_request
 -------------
 
-`syntax: function app.begin\_request(self)`
+`syntax: function app.begin_request(self) end`
 
 implement begin request hook
 
@@ -184,7 +194,7 @@ implement begin request hook
 end\_request
 ------------
 
-`synatx: function app.end\_request(self)`
+`syntax: function app.end_request(self) end`
 
 implement end request hook
 
