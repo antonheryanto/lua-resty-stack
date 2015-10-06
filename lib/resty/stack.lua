@@ -171,10 +171,10 @@ function _M.load(self, path)
     end
 
     -- check path or path/method
-    local fn = paths[path] or paths[path..'/'..method]
+    local route  = paths[path] or paths[path..'/'..method]
 
     -- check args number service/:id/action
-    if not fn then
+    if not route then
         local from, to, err = re_find(path, "([0-9]+)", "jo")
         if from then
             local service = sub(path, 1, from - 2)
@@ -183,32 +183,50 @@ function _M.load(self, path)
                 action = method
             end
 
-            fn = paths[service..'/'..action]
+            route  = paths[service..'/'..action]
             arg.id = sub(path, from, to)
         end
     end
 
-    if not fn then 
+    if not route then 
         return HTTP_NOT_FOUND
     end
 
     if config.debug then 
-        log(WARN, 'path ', path, ' load service ', fn.service, ', with request ',
-            method, ', and action ', fn.action, ', id ', arg.id ) 
+        log(WARN, 'path: ', path, ' method: ', method,
+            ' service: ', route.service, ', with request ',
+            ' action ', route.action, ' id: ', arg.id ) 
     end
 
-    local service = services[fn.service]
-    local handler = service and service[fn.action]
-    if not handler then
+    -- begin service request
+    local service = services[route.service]
+    local fn = service and service[route.action]
+    if not fn then
         return HTTP_NOT_FOUND
     end
+
+    -- setup fn params
+    local params = { 
+        config = self.config,
+        arg = arg
+    }
+
+    -- execute begin request hook
+    if self.begin_request then 
+        self.begin_request(params) 
+    end
     
-    self.arg = arg
     -- validate authorization support at service and method level
-    local user = self.authorize
+    local authorize = self.authorize
     local auth = service.AUTHORIZE
     local auths = service.AUTHORIZES
-    if user and (auth or (auths and auths[fn.action])) and not user(self) then
+    if authorize and (auth or (auths and auths[route.action])) 
+        and not authorize(params) then
+        -- execute end request hook
+        if self.end_request then
+            self.end_request(params)
+        end
+
         return HTTP_UNAUTHORIZED
     end
     
@@ -216,23 +234,18 @@ function _M.load(self, path)
     local post = self.post
     if method == 'post' or method == 'put' then
         if post then
-            self.data = post:read()
+            params.data = post:read()
         else
             read_body()
-            self.data = get_post_args()
+            params.data = get_post_args()
         end
     end
 
-    -- execute begin request hook
-    if self.begin_request then 
-        self.begin_request(self) 
-    end
-
-    local body, status = handler(self)
+    local body, status = fn(params)
 
     -- execute end request hook
     if self.end_request then
-        self.end_request(self)
+        self.end_request(params)
     end
 
     return status, body
