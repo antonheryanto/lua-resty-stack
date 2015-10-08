@@ -83,11 +83,10 @@ end
 -- TODO: predefines method and regex options
 local function router(self, path, service)
     local auth = service.AUTHORIZE
-    local auths = service.AUTHORIZES
     for m,o in pairs(service) do
         local mt = type(o)
         local mp = path..'/'..m
-        local authorize = auth or (auths and auths[m]) 
+        local authorize = auth == true or auth and auth[m]
         if mt == 'function' then
             self.services[mp] = { service = o, authorize = authorize }
         elseif mt == 'table' then -- recursive add routes

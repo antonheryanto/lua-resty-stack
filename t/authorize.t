@@ -11,14 +11,14 @@ our $HttpConfig = <<"_EOC_";
     lua_package_path "$pwd/t/servroot/html/?.lua;$pwd/lib/?.lua;;";
     init_by_lua "
         local stack = require 'resty.stack'
-        app = stack:new()
+        app = stack:new({ debug = true })
         app:use('authorize', {
             AUTHORIZE = true,
             get = function() end,
             post = function() end
         })
         app:use('authorizes', {
-            AUTHORIZES = { get = true },
+            AUTHORIZE = { get = true },
             get = function() end,
             post = function() end
         })
@@ -86,4 +86,3 @@ __DATA__
 ['GET /authorizes','POST /authorizes', 'GET /authorizes?auth=1']
 --- error_code eval
 [401, 200, 200]
-
