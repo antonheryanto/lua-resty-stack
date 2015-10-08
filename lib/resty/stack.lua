@@ -7,6 +7,7 @@ local type = type
 local tonumber = tonumber
 local sub = string.sub
 local lower = string.lower
+local byte = string.byte
 local new_tab = require "table.new"
 local cjson = require "cjson"
 local has_resty_post, resty_post = pcall(require, 'resty.post')
@@ -15,16 +16,18 @@ local var = ngx.var
 local req = ngx.req
 local print = ngx.print
 local log = ngx.log
-local WARN = ngx.WARN
+local exit = ngx.exit
 local read_body = ngx.req.read_body
 local get_post_args = ngx.req.get_post_args
 local get_uri_args = ngx.req.get_uri_args
 local re_find = ngx.re.find
+local WARN = ngx.WARN
 local HTTP_OK = ngx.HTTP_OK
 local HTTP_NOT_FOUND = ngx.HTTP_NOT_FOUND
 local HTTP_UNAUTHORIZED = ngx.HTTP_UNAUTHORIZED
+
 local _M = new_tab(0, 9)
-_M.VERSION = "0.2.1"
+_M._VERSION = "0.3.0"
 
 local mt = { __index = _M }
 function _M.new(self, config)
@@ -40,6 +43,7 @@ function _M.new(self, config)
     }, mt)
 end
 
+-- register service
 function _M.service(self, services)
     if not services or type(services) ~= 'table' then 
         return 
@@ -75,18 +79,20 @@ function _M.service(self, services)
 end
 
 -- provides routes table
+-- validate authorization support at service and method level
+-- FIXME: only used for init state as pairs is NYI
 -- TODO: predefines method and regex options
-function _M.route(self, path, service)
-    local paths = self.paths
+local function router(self, path, service)
+    local auth = service.AUTHORIZE
+    local auths = service.AUTHORIZES
     for m,o in pairs(service) do
         local mt = type(o)
         local mp = path..'/'..m
-        -- only add function
+        local authorize = auth or (auths and auths[m]) 
         if mt == 'function' then
-            paths[mp] = { service = path, action = m }
-        -- recursive route add
-        elseif mt == 'table' then -- recursive route add
-            _M.route(self, mp, o) 
+            self.services[mp] = { service = o, authorize = authorize }
+        elseif mt == 'table' then -- recursive add routes
+            router(self, mp, o) 
         end
     end
 end
@@ -101,24 +107,25 @@ function _M.use(self, path, fn)
     local tp = type(path)
     if tp ~= 'string' then 
         fn = path
-        path = sub(var.uri, config.base_length)
+        path = var.uri
     end
 
-    -- validate fn
-    if not fn then fn = require(path) end 
+    if byte(path, 1) == 47 then -- char '/'
+        path = sub(path, config.base_length)
+    end
+
+    if not fn then
+        fn = path
+    end
+
     local tf = type(fn)
-    local service
     if tf == 'function' then
-        service = { get = fn }
+        services[path] = { service = fn }
     elseif tf == 'table' then
-        service = fn
+        router(self, path, fn)
     elseif tf == 'string' then
-        service = require(fn)
+        router(self, path, require(fn))
     end
-
-    -- register path
-    services[path] = service
-    _M.route(self, path, service)
 end
 
 -- default header, override function to change
@@ -127,51 +134,55 @@ function _M.set_header(self)
     header['Access-Control-Allow-Origin'] = '*'
     header['Access-Control-Max-Age'] = 2520
     header['Access-Control-Allow-Methods'] = 'GET,POST,PUT,DELETE,HEAD,OPTIONS'
-    header['Content-Type'] = 'application/json; charset=utf-8'
+    header['Content-Type'] = 'application/json'
 end
 
--- default table render
--- TODO: plugable render
+-- FIXME: default body render
 function _M.render(self, body)
-    return cjson.encode(body)
-end
-
-function _M.run(self)
-    self.set_header(self)
-
-    local status, body = self:load()
-    if status then
-        ngx.status = status
-    end
-
     if not body then 
-        return
+        return print('null')
     end
     
-    if type(body) == 'table' then 
-        body = self.render(self, body) 
+    if type(body) == 'table' then  
+        body = cjson.encode(body) 
     end
 
     print(body)
 end
 
+-- main method run app request
+-- FIXME: uses return instead of status
+-- TODO: plugable render for content
+function _M.run(self)
+    self:set_header()
+
+    local status, body = self:load()
+    if status then
+        ngx.status = status
+        if not body then
+            return exit(status)
+        end
+    end
+
+    self:render(body)
+end
+
 function _M.load(self, path)
-    local paths = self.paths
-    if not paths then 
+    local services = self.services
+    if not services then 
         return HTTP_NOT_FOUND 
     end 
     
     local config = self.config
-    local services = self.services
     local path = path or sub(var.uri, config.base_length)
     local arg = get_uri_args()
     local method = lower(arg.method or var.request_method)
-    if (method == 'head' or method == 'options') and paths[path..'/get'] then 
+    if (method == 'head' or method == 'options') and services[path..'/get'] then
         return HTTP_OK
     end
 
     -- check path or path/method
-    local route  = paths[path] or paths[path..'/'..method]
+    local route  = services[path] or services[path..'/'..method]
 
     -- check args number service/:id/action
     if not route then
@@ -183,7 +194,7 @@ function _M.load(self, path)
                 action = method
             end
 
-            route  = paths[service..'/'..action]
+            route = services[service..'/'..action]
             arg.id = sub(path, from, to)
         end
     end
@@ -193,19 +204,12 @@ function _M.load(self, path)
     end
 
     if config.debug then 
-        log(WARN, 'path: ', path, ' method: ', method,
-            ' service: ', route.service, ', with request ',
-            ' action ', route.action, ' id: ', arg.id ) 
+        log(WARN, 'path: ', path, ' method: ', method, ' id: ', arg.id,
+            ' authorize ', route.authorize) 
     end
 
-    -- begin service request
-    local service = services[route.service]
-    local fn = service and service[route.action]
-    if not fn then
-        return HTTP_NOT_FOUND
-    end
-
-    -- setup fn params
+    -- setup service and params
+    local service = route.service
     local params = { 
         config = self.config,
         arg = arg
@@ -216,12 +220,9 @@ function _M.load(self, path)
         self.begin_request(params) 
     end
     
-    -- validate authorization support at service and method level
+    -- validate authorization
     local authorize = self.authorize
-    local auth = service.AUTHORIZE
-    local auths = service.AUTHORIZES
-    if authorize and (auth or (auths and auths[route.action])) 
-        and not authorize(params) then
+    if authorize and route.authorize and not authorize(params) then
         -- execute end request hook
         if self.end_request then
             self.end_request(params)
@@ -241,7 +242,7 @@ function _M.load(self, path)
         end
     end
 
-    local body, status = fn(params)
+    local body, status = service(params)
 
     -- execute end request hook
     if self.end_request then
