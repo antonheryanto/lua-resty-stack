@@ -8,8 +8,8 @@ local tonumber = tonumber
 local sub = string.sub
 local lower = string.lower
 local byte = string.byte
-local new_tab = require "table.new"
-local cjson = require "cjson"
+local new_tab = require 'table.new'
+local cjson = require 'cjson'
 local has_resty_post, resty_post = pcall(require, 'resty.post')
 local ngx = ngx
 local var = ngx.var
@@ -27,9 +27,9 @@ local HTTP_NOT_FOUND = ngx.HTTP_NOT_FOUND
 local HTTP_UNAUTHORIZED = ngx.HTTP_UNAUTHORIZED
 
 local _M = new_tab(0, 9)
-_M._VERSION = "0.3.0"
-
 local mt = { __index = _M }
+_M._VERSION = '0.3.1'
+
 function _M.new(self, config)
     config = config or {}
     config.base_length = config.base and #config.base + 2 or 2
@@ -38,7 +38,6 @@ function _M.new(self, config)
     return setmetatable({
         post = post,
         config = config,
-        paths = {},
         services = {}
     }, mt)
 end
@@ -103,7 +102,6 @@ function _M.use(self, path, fn)
     -- validate path
     local config = self.config
     local services = self.services
-    local paths = self.paths
     local tp = type(path)
     if tp ~= 'string' then 
         fn = path
@@ -128,22 +126,19 @@ function _M.use(self, path, fn)
     end
 end
 
--- default header, override function to change
-function _M.set_header(self)
+-- default header and body render
+-- default handling json only
+-- FIXME handle return text, html, binary
+function _M.render(self, body)
     local header = ngx.header
     header['Access-Control-Allow-Origin'] = '*'
     header['Access-Control-Max-Age'] = 2520
     header['Access-Control-Allow-Methods'] = 'GET,POST,PUT,DELETE,HEAD,OPTIONS'
-    header['Content-Type'] = 'application/json'
-end
+    header['Content-Type'] = 'application/json; charset=utf-8'
 
--- FIXME: default body render
-function _M.render(self, body)
     if not body then 
-        return print('null')
-    end
-    
-    if type(body) == 'table' then  
+        body = 'null'
+    elseif type(body) == 'table' then  
         body = cjson.encode(body) 
     end
 
@@ -154,8 +149,6 @@ end
 -- FIXME: uses return instead of status
 -- TODO: plugable render for content
 function _M.run(self)
-    self:set_header()
-
     local status, body = self:load()
     if status then
         ngx.status = status
@@ -167,14 +160,19 @@ function _M.run(self)
     self:render(body)
 end
 
-function _M.load(self, path)
+function _M.load(self, uri)
     local services = self.services
     if not services then 
         return HTTP_NOT_FOUND 
     end 
+
+    if not uri then
+        uri = var.uri
+    end
     
     local config = self.config
-    local path = path or sub(var.uri, config.base_length)
+    local slash = byte(uri, #uri) == 47 and #uri - 1 or nil -- char '/'
+    local path = sub(uri, config.base_length, slash)
     local arg = get_uri_args()
     local method = lower(arg.method or var.request_method)
     if (method == 'head' or method == 'options') and services[path..'/get'] then
@@ -186,7 +184,7 @@ function _M.load(self, path)
 
     -- check args number service/:id/action
     if not route then
-        local from, to, err = re_find(path, "([0-9]+)", "jo")
+        local from, to, err = re_find(path, '([0-9]+)', 'jo')
         if from then
             local service = sub(path, 1, from - 2)
             local action = sub(path, to + 2)

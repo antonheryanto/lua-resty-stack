@@ -3,7 +3,7 @@ use Cwd qw(cwd);
 
 repeat_each(2);
 
-plan tests => repeat_each() * (blocks() * 5);
+plan tests => repeat_each() * (blocks() * 6);
 
 my $pwd = cwd();
 
@@ -45,6 +45,8 @@ __DATA__
 ['GET /t', 'GET /base']
 --- response_body eval
 ['ok', '{"base":"base"}']
+--- no_error_log
+[error]
 
 === TEST 2: use service
 --- http_config
@@ -62,7 +64,7 @@ __DATA__
 >>> hello.lua
 local _M = {}
 function _M.get(self)
-    return 'hello'
+    return ''
 end
 function _M.empty(self)
     return
@@ -71,7 +73,9 @@ return _M
 --- request eval
 ['GET /hello', 'GET /hello/empty']
 --- response_body eval
-['hello', 'null']
+['', 'null']
+--- no_error_log
+[error]
 
 === TEST 3: override status
 --- http_config eval: $::HttpConfig
