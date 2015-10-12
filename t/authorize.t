@@ -86,3 +86,26 @@ __DATA__
 ['GET /authorizes','POST /authorizes', 'GET /authorizes?auth=1']
 --- error_code eval
 [401, 200, 200]
+
+=== TEST 5: use function authorize
+--- http_config eval: $::HttpConfig
+--- config
+    location =/public {
+        content_by_lua "
+            app:use(function() end)
+            app:run()
+        ";
+    }
+
+    location =/auth {
+        content_by_lua "
+            app.authorize = auth
+            app:use(function() end, true)
+            app:run()
+        ";
+    }
+--- request eval
+['GET /public','GET /auth', 'GET /auth?auth=1']
+--- error_code eval
+[200, 401, 200]
+

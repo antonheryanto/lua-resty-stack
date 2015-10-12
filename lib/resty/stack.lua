@@ -95,7 +95,7 @@ local function router(self, path, service)
     end
 end
 
-function _M.use(self, path, fn)
+function _M.use(self, path, fn, authorize)
     if not path then return end
 
     -- validate path
@@ -103,6 +103,7 @@ function _M.use(self, path, fn)
     local services = self.services
     local tp = type(path)
     if tp ~= 'string' then 
+        authorize = fn
         fn = path
         path = var.uri
     end
@@ -117,7 +118,7 @@ function _M.use(self, path, fn)
 
     local tf = type(fn)
     if tf == 'function' then
-        services[path] = { service = fn }
+        services[path] = { service = fn, authorize = authorize }
     elseif tf == 'table' then
         router(self, path, fn)
     elseif tf == 'string' then
