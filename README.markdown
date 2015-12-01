@@ -50,7 +50,7 @@ Recommended Application folder structure
   * [post.lua](#see-also) -- optional for advance post process like formdata, json and file upload
   * [template.lua](#see-also) -- optional for templating for override render
 * api
-  * config.lua 
+  * config.lua
   * app.lua
   * hello.lua
 
@@ -65,13 +65,15 @@ http {
     proxy_temp_path logs;
     scgi_temp_path logs;
     uwsgi_temp_path logs;
-
     init_by_lua_file "api/app.lua";
+    lua_code_cache off;
     server {
-        listen 8080;
-        lua_code_cache off;
+        listen 127.0.0.1:8080;
         location /api {
-            content_by_lua "app:run()";
+            content_by_lua_block {
+                local app = require 'api.app'
+                app:run()
+            }
         }
     }
 }
@@ -89,10 +91,11 @@ app.lua
 ```lua
     local stack = require 'resty.stack'
     local config = require 'api.config'
-    app = stack:new(config)
-    app:service ({ api = { 
+    local app = stack:new(config)
+    app:service ({ api = {
         'hello'
     }})
+    return app
 ```
 
 hello.lua
@@ -100,10 +103,10 @@ hello.lua
 local _M = {}
 
 function _M.get(self)
-  return "get Hello" 
+  return "get Hello"
 end
 
-function _M.post(self) 
+function _M.post(self)
   return "post Hello"
 end
 
@@ -154,10 +157,10 @@ service
 
 `syntax: app:service(services)`
 
-register servicese using lua table 
+register servicese using lua table
 
 * `services`
-    
+
     table of services to load
 
 run
@@ -221,10 +224,10 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 See Also
 =======
 
-* [lua-resty-post](https://github.com/antonheryanto/lua-resty-post) 
-* [lua-resty-smtp](https://github.com/antonheryanto/lua-resty-smtp) 
-* [lua-resty-pdf](https://github.com/antonheryanto/lua-resty-pdf) 
-* [lua-resty-search](https://github.com/antonheryanto/lua-resty-search) 
+* [lua-resty-post](https://github.com/antonheryanto/lua-resty-post)
+* [lua-resty-smtp](https://github.com/antonheryanto/lua-resty-smtp)
+* [lua-resty-pdf](https://github.com/antonheryanto/lua-resty-pdf)
+* [lua-resty-search](https://github.com/antonheryanto/lua-resty-search)
 * [lua-resty-upload](https://github.com/openresty/lua-resty-upload)
 * [lua-nginx-module](https://github.com/openresty/lua-nginx-module)
 
