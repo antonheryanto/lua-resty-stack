@@ -13,8 +13,9 @@ local smallwords = {
 }
 
 function string.titlecase(self)
-    title = lower(self)
-    return (gsub(title, "()([%w&`'''\".@:/{%(%[<>_]+)(-? *)()", function (index, nonspace, space, endpos)
+    local title = lower(self)
+    return (gsub(title, "()([%w&`'''\".@:/{%(%[<>_]+)(-? *)()",
+    function (index, nonspace, space, endpos)
         local low = lower(nonspace)
         if (index > 1) and (sub(title, index - 2,index - 2) ~= ':')
             and (endpos < #title) and smallwords[low] then
@@ -49,16 +50,17 @@ function string.split(self, delimiter, limit)
     while true do
         if limit and n > limit then break end
 
-        local pos = find(self,delimiter,index,true) -- find the next d in the string
+	-- find the next d in the string
+        local pos = find(self,delimiter,index,true)
         if pos ~= nil then -- if "not not" found then..
             result[n] = sub(self,index, pos - 1) -- Save it in our array.
-            index = pos + 1 -- save just after where we found it for searching next time.
-
+	    -- save just after where we found it for searching next time.
+            index = pos + 1
         else
             result[n] = sub(self,index) -- Save what's left in our array.
             break -- Break at end, as it should be, according to the lua manual.
-
         end
+
         n = n + 1
     end
 

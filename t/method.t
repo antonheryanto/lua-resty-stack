@@ -20,7 +20,7 @@ __DATA__
 
 === TEST 1: response to each methods
 --- http_config eval: $::HttpConfig
---- config 
+--- config
     location /t {
         content_by_lua "
             local stack = require 'resty.stack'
@@ -32,21 +32,21 @@ __DATA__
 --- user_files
 >>> method.lua
 local _M = {}
-function _M.get() 
+function _M.get()
     return 'get'
 end
-function _M.post() 
+function _M.post()
     return 'post'
 end
-function _M.put() 
+function _M.put()
     return 'put'
 end
-function _M.delete() 
+function _M.delete()
     return 'delete'
 end
 return _M
 --- request eval
-['GET /t', 'POST /t', 'PUT /t', 'DELETE /t', 
+['GET /t', 'POST /t', 'PUT /t', 'DELETE /t',
 'GET /t?method=POST', 'GET /t?method=PUT', 'GET /t?method=DELETE',
 'HEAD /t', 'OPTIONS /t']
 --- response_body eval

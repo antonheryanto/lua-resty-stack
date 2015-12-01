@@ -24,9 +24,9 @@ __DATA__
     location /t {
       content_by_lua "
         local app  = require 'resty.stack':new()
-        app:use(function(self) 
+        app:use(function(self)
           return 'ok'
-        end) 
+        end)
         app:run()
       ";
     }
@@ -35,9 +35,9 @@ __DATA__
       content_by_lua "
         local stack = require 'resty.stack'
         local app = stack:new{ base = '/base/' }
-        app:use(function(self) 
+        app:use(function(self)
           return {base = 'base'}
-        end) 
+        end)
         app:run()
       ";
     }
@@ -50,7 +50,7 @@ __DATA__
 
 === TEST 2: use service
 --- http_config
-    lua_package_path "${prefix}../../lib/?.lua;${prefix}html/?.lua;;";       
+    lua_package_path "${prefix}../../lib/?.lua;${prefix}html/?.lua;;";
     init_by_lua "
         local stack = require 'resty.stack'
         app = stack:new()
@@ -88,7 +88,7 @@ return _M
             post = function() return 'ACCEPTED', 202 end,
             put = function() return 'CREATED', 201 end,
             delete = function() return 'NO_CONTENT', 204 end
-        }) 
+        })
         app:run()
       ";
     }
@@ -110,7 +110,7 @@ return _M
             post = function() return 'FORBIDDEN', 403 end,
             put = function() return 'NOT_FOUND', 404 end,
             delete = function() return 'NOT_ALLOWED', 405 end
-        }) 
+        })
         app:run()
       ";
     }

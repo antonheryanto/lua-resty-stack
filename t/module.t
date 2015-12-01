@@ -20,7 +20,7 @@ __DATA__
         app = stack:new()
         app:service({'t', t = {'m'}, a = 't.m'})
     ";
---- config 
+--- config
     location /t {
         content_by_lua "app:run()";
     }
@@ -30,7 +30,7 @@ __DATA__
 --- user_files
 >>> t.lua
 local _M = {}
-function _M.get(self) 
+function _M.get(self)
     return 't'..(self.arg.id or '')
 end
 function _M.x(self)
@@ -39,7 +39,7 @@ end
 return _M
 >>> t/m.lua
 local _M = {}
-function _M.get(self) 
+function _M.get(self)
     return 'tm'..(self.arg.id or '')
 end
 function _M.x(self)
@@ -47,7 +47,7 @@ function _M.x(self)
 end
 return _M
 --- request eval
-['GET /t', 'GET /t/1', 'GET /t/1/x' 
+['GET /t', 'GET /t/1', 'GET /t/1/x'
 ,'GET /t/m', 'GET /t/m/1', 'GET /t/m/1/x'
 ,'GET /a', 'GET /a/1', 'GET /a/1/x']
 --- response_body eval

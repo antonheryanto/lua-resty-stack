@@ -35,22 +35,22 @@ __DATA__
 
 === TEST 1: first level routing
 --- http_config eval: $::HttpConfig
---- config 
+--- config
     location /t {
         content_by_lua "app:run()";
     }
 --- request eval
-['GET /t', 'GET /t?id=1', 'GET /t/x', 'GET /t/1', 'GET /t/1/x'] 
+['GET /t', 'GET /t?id=1', 'GET /t/x', 'GET /t/1', 'GET /t/1/x']
 --- response_body eval
 ['get', 'get1', 'x', 'get1', 'x1']
 
 === TEST 2: second level routing
 --- http_config eval: $::HttpConfig
---- config 
+--- config
     location /t/m {
         content_by_lua "app:run()";
     }
 --- request eval
-['GET /t/m', 'GET /t/m?id=1', 'GET /t/m/x', 'GET /t/m/1', 'GET /t/m/1/x'] 
+['GET /t/m', 'GET /t/m?id=1', 'GET /t/m/x', 'GET /t/m/1', 'GET /t/m/1/x']
 --- response_body eval
 ['get', 'get1', 'x', 'get1', 'x1']

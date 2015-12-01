@@ -14,7 +14,7 @@ our $HttpConfig = <<"_EOC_";
         local stack = require 'resty.stack'
         app = stack:new()
         app:use('t', function(self)
-            return self.r:get('cat')      
+            return self.r:get('cat')
         end)
         function app.begin_request(self)
             self.r = db.redis(self.config.redis)
@@ -27,7 +27,6 @@ our $HttpConfig = <<"_EOC_";
 _EOC_
 
 no_long_string();
-        
 run_tests();
 
 __DATA__
@@ -38,7 +37,7 @@ __DATA__
     location /t {
         content_by_lua "app:run()";
     }
---- request 
+--- request
 GET /t
 --- response_body: tiger
 --- no_error_log

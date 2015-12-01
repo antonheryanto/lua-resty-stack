@@ -23,12 +23,12 @@ function _M.mysql(conf)
 
     local db = mysql:new()
     db:set_timeout(conf.timeout or 1000)
-    local ok,err = db:connect(conf) 
-    if not ok then 
-        log(ERR, 'failed connect to mysql with message: ', err) 
+    local ok,err = db:connect(conf)
+    if not ok then
+        log(ERR, 'failed connect to mysql with message: ', err)
         return
     end
-    
+
     return db, conf
 end
 
@@ -36,10 +36,10 @@ function _M.redis(conf)
     conf = conf or {}
     local r = redis:new()
     r:set_timeout(conf.timeout or 1000)
-    local ok,err = conf.socket and r:connect(conf.socket) 
+    local ok,err = conf.socket and r:connect(conf.socket)
         or r:connect(conf.host or '127.0.0.1', conf.port or 6379)
 
-    if not ok then 
+    if not ok then
         log(ERR, "failed connect to redis with message : ", err)
         return
     end
@@ -51,7 +51,8 @@ function _M.redis(conf)
 
     function r.hash_get(r, key, ...)
         local args = {...}
-        local fields = (#args == 1 and type(args[1]) == 'table') and args[1] or args
+        local fields = (#args == 1 and type(args[1]) == 'table') and args[1]
+	    or args
         local n = #fields
         local m = new_tab(0, n)
         r:init_pipeline(n)
@@ -74,8 +75,9 @@ function _M.redis(conf)
             local k = fields[i]
             local v = trim(data[k])
             local t = type(v)
-            if v and v ~= '' and v ~= null and v ~= 'table'  and v ~= 'function' then 
-                r:hset(key, k, v) 
+            if v and v ~= '' and v ~= null and v ~= 'table'
+		and v ~= 'function' then
+                r:hset(key, k, v)
             end
         end
     end
@@ -102,9 +104,10 @@ function _M.keep(db, conf)
         log(WARN, "reused: ", times, " error: ", ex)
     end
 
-    local ok,err = db:set_keepalive(conf.keep_idle or 1000, conf.keep_size or 1024)
-    if not ok then 
-        log(ERR, "failed to keepalive with message: ", err) 
+    local ok,err = db:set_keepalive(conf.keep_idle or 1000,
+	conf.keep_size or 1024)
+    if not ok then
+        log(ERR, "failed to keepalive with message: ", err)
     end
 end
 
