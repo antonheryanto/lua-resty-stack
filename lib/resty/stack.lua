@@ -44,8 +44,8 @@ end
 
 -- register service
 function _M.service(self, services)
-    if not services or type(services) ~= 'table' then 
-        return 
+    if not services or type(services) ~= 'table' then
+        return
     end
 
     -- service 'string', 'function', 'table'
@@ -54,8 +54,8 @@ function _M.service(self, services)
         if type(v) == 'table' then
             for sk,sv in pairs(v) do
                 local tsk = type(sk)
-                if tsk == 'number' then 
-                    sk = sv 
+                if tsk == 'number' then
+                    sk = sv
                 end
 
                 local spath = tsk == 'string' and k..'/'..sk or k
@@ -68,8 +68,8 @@ function _M.service(self, services)
                 _M.use(self, spath, sfn)
             end
         else
-            if type(k) == 'number' then 
-                k = v 
+            if type(k) == 'number' then
+                k = v
             end
 
             _M.use(self, k, v)
@@ -90,11 +90,13 @@ local function router(self, path, service)
         if mt == 'function' then
             self.services[mp] = { service = o, authorize = authorize }
         elseif mt == 'table' then -- recursive add routes
-            router(self, mp, o) 
+            router(self, mp, o)
         end
     end
 end
 
+-- FIXME provides single param instead of multiple for simplicity
+-- FIXME string, function, or table for complete
 function _M.use(self, path, fn, authorize)
     if not path then return end
 
@@ -102,7 +104,7 @@ function _M.use(self, path, fn, authorize)
     local config = self.config
     local services = self.services
     local tp = type(path)
-    if tp ~= 'string' then 
+    if tp ~= 'string' then
         authorize = fn
         fn = path
         path = var.uri
@@ -130,20 +132,27 @@ end
 -- default handling json only
 -- FIXME handle return text, html, binary
 function _M.render(self, body)
+    if not body then return end
+
+    -- json when service return table
+    if type(body) == 'table' then
+	local header = ngx.header
+	header['Content-Type'] = 'application/json'
+        body = cjson.encode(body)
+    end
+
+    -- print string body, type define by service
+    print(body)
+end
+
+-- FIXME simplify best way to modify header
+function _M.set_header(self)
     local header = ngx.header
     header['Access-Control-Allow-Origin'] = '*'
     header['Access-Control-Max-Age'] = 2520
     header['Access-Control-Allow-Methods'] = 'GET,POST,PUT,DELETE,HEAD,OPTIONS'
-    header['Content-Type'] = 'application/json; charset=utf-8'
-
-    if not body then 
-        body = 'null'
-    elseif type(body) == 'table' then  
-        body = cjson.encode(body) 
-    end
-
-    print(body)
 end
+
 
 -- main method run app request
 -- FIXME: uses return instead of status
@@ -162,14 +171,14 @@ end
 
 function _M.load(self, uri)
     local services = self.services
-    if not services then 
-        return HTTP_NOT_FOUND 
-    end 
+    if not services then
+        return HTTP_NOT_FOUND
+    end
 
     if not uri then
         uri = var.uri
     end
-    
+
     local config = self.config
     local slash = byte(uri, #uri) == 47 and #uri - 1 or nil -- char '/'
     local path = sub(uri, config.base_length, slash)
@@ -188,7 +197,7 @@ function _M.load(self, uri)
         if from then
             local service = sub(path, 1, from - 2)
             local action = sub(path, to + 2)
-            if action == '' then 
+            if action == '' then
                 action = method
             end
 
@@ -197,27 +206,28 @@ function _M.load(self, uri)
         end
     end
 
-    if not route then 
+    if not route then
         return HTTP_NOT_FOUND
     end
 
-    if config.debug then 
+    if config.debug then
         log(WARN, 'path: ', path, ' method: ', method, ' id: ', arg.id,
-            ' authorize ', route.authorize) 
+            ' authorize ', type(route.authorize))
     end
 
     -- setup service and params
     local service = route.service
-    local params = { 
+    local params = {
+	authorize = route.authorize,
         config = self.config,
         arg = arg
     }
 
     -- execute begin request hook
-    if self.begin_request then 
-        self.begin_request(params) 
+    if self.begin_request then
+        self.begin_request(params)
     end
-    
+
     -- validate authorization
     local authorize = self.authorize
     if authorize and route.authorize and not authorize(params) then
@@ -228,7 +238,7 @@ function _M.load(self, uri)
 
         return HTTP_UNAUTHORIZED
     end
-    
+
     -- process post/put data
     local post = self.post
     if method == 'post' or method == 'put' then

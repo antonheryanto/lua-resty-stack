@@ -18,9 +18,10 @@ our $HttpConfig = <<"_EOC_";
             post = function() end
         })
         app:use('authorizes', {
-            AUTHORIZE = { get = true },
+            AUTHORIZE = { get = true, delete = {'read write'} },
             get = function() end,
-            post = function() end
+            post = function() end,
+            delete = function() end
         })
         function auth(self)
             if self.arg.auth then
