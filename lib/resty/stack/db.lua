@@ -52,7 +52,7 @@ function _M.redis(conf)
     function r.hash_get(r, key, ...)
         local args = {...}
         local fields = (#args == 1 and type(args[1]) == 'table') and args[1]
-	    or args
+            or args
         local n = #fields
         local m = new_tab(0, n)
         r:init_pipeline(n)
@@ -76,7 +76,7 @@ function _M.redis(conf)
             local v = trim(data[k])
             local t = type(v)
             if v and v ~= '' and v ~= null and v ~= 'table'
-		and v ~= 'function' then
+                and v ~= 'function' then
                 r:hset(key, k, v)
             end
         end
@@ -105,7 +105,7 @@ function _M.keep(db, conf)
     end
 
     local ok,err = db:set_keepalive(conf.keep_idle or 1000,
-	conf.keep_size or 1024)
+        conf.keep_size or 1024)
     if not ok then
         log(ERR, "failed to keepalive with message: ", err)
     end
