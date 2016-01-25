@@ -132,16 +132,20 @@ end
 -- default handling json only
 -- FIXME handle return text, html, binary
 function _M.render(self, body)
-    if not body then return end
+    local header = ngx.header
+    if not body then
+        header['Content-Length'] = 0
+        return
+    end
 
     -- json when service return table
     if type(body) == 'table' then
-	local header = ngx.header
-	header['Content-Type'] = 'application/json'
+        header['Content-Type'] = 'application/json'
         body = cjson.encode(body)
     end
 
     -- print string body, type define by service
+    header['Content-Length'] = #body
     print(body)
 end
 
@@ -218,7 +222,7 @@ function _M.load(self, uri)
     -- setup service and params
     local service = route.service
     local params = {
-	authorize = route.authorize,
+        authorize = route.authorize,
         config = self.config,
         arg = arg
     }
