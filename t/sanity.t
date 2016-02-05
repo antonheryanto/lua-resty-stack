@@ -73,7 +73,7 @@ return _M
 --- request eval
 ['GET /hello', 'GET /hello/empty']
 --- response_body eval
-['', 'null']
+['', '']
 --- no_error_log
 [error]
 

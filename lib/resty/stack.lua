@@ -5,6 +5,7 @@ local setmetatable = setmetatable
 local pairs = pairs
 local type = type
 local tonumber = tonumber
+local tostring = tostring
 local sub = string.sub
 local lower = string.lower
 local byte = string.byte
@@ -139,9 +140,14 @@ function _M.render(self, body)
     end
 
     -- json when service return table
-    if type(body) == 'table' then
+    local typ = type(body)
+    if typ == 'table' then
         header['Content-Type'] = 'application/json'
         body = cjson.encode(body)
+    end
+
+    if typ ~= 'string' then
+        body = tostring(body)
     end
 
     -- print string body, type define by service
