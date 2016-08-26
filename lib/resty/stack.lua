@@ -175,8 +175,8 @@ function _M.run(self)
             return exit(status)
         end
     end
-
     self:render(body)
+    return exit(status or HTTP_OK)
 end
 
 function _M.load(self, uri)

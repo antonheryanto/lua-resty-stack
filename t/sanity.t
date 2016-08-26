@@ -84,10 +84,10 @@ return _M
       content_by_lua "
         local app = require 'resty.stack':new()
         app:use({
-            get = function() return 'NOT_MODIFIED', 304 end,
+            get = function() return nil, 304 end,
             post = function() return 'ACCEPTED', 202 end,
             put = function() return 'CREATED', 201 end,
-            delete = function() return 'NO_CONTENT', 204 end
+            delete = function() return nil, 204 end
         })
         app:run()
       ";
