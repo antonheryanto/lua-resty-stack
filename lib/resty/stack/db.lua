@@ -75,9 +75,12 @@ function _M.redis(conf)
             local k = fields[i]
             local v = trim(data[k])
             local t = type(v)
-            if v and v ~= '' and v ~= null and v ~= 'table'
-                and v ~= 'function' then
-                r:hset(key, k, v)
+            if v then
+                if v == '' then
+                    r:hdel(key, k)
+                elseif v ~= null and t ~= 'table' and t ~= 'function' then
+                    r:hset(key, k, v)
+                end
             end
         end
     end
